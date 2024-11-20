@@ -3632,51 +3632,6 @@ static int Menu_options(MenuList* list) {
 			SDL_Surface* text;
 
 			if (type==MENU_LIST) {
-				// int mw = list->max_width;
-				// if (!mw) {
-				// 	// get the width of the widest item
-				// 	for (int i=0; i<count; i++) {
-				// 		MenuItem* item = &items[i];
-				// 		int w = 0;
-				// 		TTF_SizeUTF8(font.small, item->name, &w, NULL);
-				// 		w += SCALE1(OPTION_PADDING*2);
-				// 		if (w>mw) mw = w;
-				// 	}
-				// 	// cache the result
-				// 	list->max_width = mw = MIN(mw, screen->w - SCALE1(PADDING *2));
-				// }
-				
-				// int ox = (screen->w - mw) / 2;
-				// int oy = SCALE1(PADDING + PILL_SIZE);
-				// int selected_row = selected - start;
-				// for (int i=start,j=0; i<end; i++,j++) {
-				// 	MenuItem* item = &items[i];
-				// 	SDL_Color text_color = COLOR_WHITE;
-
-				// 	// int ox = (screen->w - w) / 2; // if we're centering these (but I don't think we should after seeing it)
-				// 	if (j==selected_row) {
-				// 		// move out of conditional if centering
-				// 		int w = 0;
-				// 		TTF_SizeUTF8(font.small, item->name, &w, NULL);
-				// 		w += SCALE1(OPTION_PADDING*2);
-						
-				// 		GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-				// 			ox,
-				// 			oy+SCALE1(j*BUTTON_SIZE),
-				// 			w,
-				// 			SCALE1(BUTTON_SIZE)
-				// 		});
-				// 		text_color = COLOR_BLACK;
-						
-				// 		if (item->desc) desc = item->desc;
-				// 	}
-				// 	text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
-				// 	SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-				// 		ox+SCALE1(OPTION_PADDING),
-				// 		oy+SCALE1((j*BUTTON_SIZE)+1)
-				// 	});
-				// 	SDL_FreeSurface(text);
-				// }
 				if (type == MENU_LIST) {
 				int mw = screen->w - SCALE1(PADDING * 2); // 菜单宽度
     			int ox = SCALE1(PADDING);                // 菜单起始位置
