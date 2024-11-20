@@ -3623,7 +3623,7 @@ static int Menu_options(MenuList* list) {
 		if (!defer_menu) PWR_update(&dirty, &show_settings, Menu_beforeSleep, Menu_afterSleep);
 		
 		if (defer_menu && PAD_justReleased(BTN_MENU)) defer_menu = false;
-		
+		///TODO：模拟器菜单UI统一
 		if (dirty) {
 			GFX_clear(screen);
 			GFX_blitHardwareGroup(screen, show_settings);
