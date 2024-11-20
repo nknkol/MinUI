@@ -3445,7 +3445,7 @@ static int OptionQuicksave_onConfirm(MenuList* list, int i) {
 	Menu_beforeSleep();
 	PWR_powerOff();
 }
-
+//TDON：固定菜单UI统一、汉化
 static MenuList options_menu = {
 	.type = MENU_LIST,
 	.items = (MenuItem[]) {
@@ -3632,50 +3632,80 @@ static int Menu_options(MenuList* list) {
 			SDL_Surface* text;
 
 			if (type==MENU_LIST) {
-				int mw = list->max_width;
-				if (!mw) {
-					// get the width of the widest item
-					for (int i=0; i<count; i++) {
-						MenuItem* item = &items[i];
-						int w = 0;
-						TTF_SizeUTF8(font.small, item->name, &w, NULL);
-						w += SCALE1(OPTION_PADDING*2);
-						if (w>mw) mw = w;
-					}
-					// cache the result
-					list->max_width = mw = MIN(mw, screen->w - SCALE1(PADDING *2));
-				}
+				// int mw = list->max_width;
+				// if (!mw) {
+				// 	// get the width of the widest item
+				// 	for (int i=0; i<count; i++) {
+				// 		MenuItem* item = &items[i];
+				// 		int w = 0;
+				// 		TTF_SizeUTF8(font.small, item->name, &w, NULL);
+				// 		w += SCALE1(OPTION_PADDING*2);
+				// 		if (w>mw) mw = w;
+				// 	}
+				// 	// cache the result
+				// 	list->max_width = mw = MIN(mw, screen->w - SCALE1(PADDING *2));
+				// }
 				
-				int ox = (screen->w - mw) / 2;
+				// int ox = (screen->w - mw) / 2;
+				// int oy = SCALE1(PADDING + PILL_SIZE);
+				// int selected_row = selected - start;
+				// for (int i=start,j=0; i<end; i++,j++) {
+				// 	MenuItem* item = &items[i];
+				// 	SDL_Color text_color = COLOR_WHITE;
+
+				// 	// int ox = (screen->w - w) / 2; // if we're centering these (but I don't think we should after seeing it)
+				// 	if (j==selected_row) {
+				// 		// move out of conditional if centering
+				// 		int w = 0;
+				// 		TTF_SizeUTF8(font.small, item->name, &w, NULL);
+				// 		w += SCALE1(OPTION_PADDING*2);
+						
+				// 		GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
+				// 			ox,
+				// 			oy+SCALE1(j*BUTTON_SIZE),
+				// 			w,
+				// 			SCALE1(BUTTON_SIZE)
+				// 		});
+				// 		text_color = COLOR_BLACK;
+						
+				// 		if (item->desc) desc = item->desc;
+				// 	}
+				// 	text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+				// 	SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+				// 		ox+SCALE1(OPTION_PADDING),
+				// 		oy+SCALE1((j*BUTTON_SIZE)+1)
+				// 	});
+				// 	SDL_FreeSurface(text);
+				// }
+				if (type == MENU_LIST) {
+				int mw = screen->w - SCALE1(PADDING * 2); // 菜单宽度
+    			int ox = SCALE1(PADDING);                // 菜单起始位置
 				int oy = SCALE1(PADDING + PILL_SIZE);
 				int selected_row = selected - start;
-				for (int i=start,j=0; i<end; i++,j++) {
-					MenuItem* item = &items[i];
-					SDL_Color text_color = COLOR_WHITE;
+					for (int i = start, j = 0; i < end; i++, j++) {
+						MenuItem* item = &items[i];
+						SDL_Color text_color = COLOR_WHITE;
 
-					// int ox = (screen->w - w) / 2; // if we're centering these (but I don't think we should after seeing it)
-					if (j==selected_row) {
-						// move out of conditional if centering
-						int w = 0;
-						TTF_SizeUTF8(font.small, item->name, &w, NULL);
-						w += SCALE1(OPTION_PADDING*2);
-						
-						GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
-							w,
-							SCALE1(BUTTON_SIZE)
+						// 绘制选中项背景
+						if (j == selected_row) {
+							GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
+								ox,
+								oy + SCALE1(j * BUTTON_SIZE),
+								mw, // 菜单宽度
+								SCALE1(BUTTON_SIZE)
+							});
+							text_color = COLOR_BLACK; // 选中项文字为黑色
+							if (item->desc) desc = item->desc; // 记录描述文本
+						}
+
+						// 绘制菜单项文本
+						SDL_Surface* text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+							ox + SCALE1(OPTION_PADDING),          // 左对齐
+							oy + SCALE1((j * BUTTON_SIZE) + 1)    // 垂直位置
 						});
-						text_color = COLOR_BLACK;
-						
-						if (item->desc) desc = item->desc;
+						SDL_FreeSurface(text);
 					}
-					text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
-					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						ox+SCALE1(OPTION_PADDING),
-						oy+SCALE1((j*BUTTON_SIZE)+1)
-					});
-					SDL_FreeSurface(text);
 				}
 			}
 			else if (type==MENU_FIXED) {
