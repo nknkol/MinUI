@@ -4258,7 +4258,7 @@ static void Menu_loop(void) {
 		}
 
 		PWR_update(&dirty, &show_setting, Menu_beforeSleep, Menu_afterSleep);
-		
+		//TODO：菜单UI统一
 		if (dirty) {
 			GFX_clear(screen);
 			
