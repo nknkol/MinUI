@@ -193,6 +193,40 @@ static struct Game {
 	size_t size;
 	int is_open;
 } game;
+/**
+ * @brief 打开并初始化游戏文件。支持普通文件和 ZIP 压缩文件的处理。
+ *
+ * - 加载游戏路径和文件名。
+ * - 如果游戏文件是 ZIP 压缩文件：
+ *   - 检查核心是否支持 ZIP 文件。
+ *   - 如果不支持，尝试解压并提取支持的文件格式。
+ * - 如果核心不需要完整路径：
+ *   - 直接加载游戏文件至内存。
+ * - 检查是否存在与游戏文件关联的 M3U 播放列表文件并进行处理。
+ * - 设置全局游戏结构的打开状态。
+ *
+ * @param path 游戏文件的路径。
+ */
+/**
+ * @example 用法示例：
+ * 
+ * char* game_path = "/path/to/game/file.zip";
+ * Game_open(game_path);
+ * 
+ * // 打开游戏文件后，可以访问全局 `game` 结构体中的信息：
+ * if (game.is_open) {
+ *     printf("游戏名称: %s\n", game.name);
+ *     printf("游戏路径: %s\n", game.path);
+ *     if (game.m3u_path[0]) {
+ *         printf("关联的 M3U 文件: %s\n", game.m3u_path);
+ *     }
+ *     if (game.data) {
+ *         printf("游戏数据大小: %zu 字节\n", game.size);
+ *     }
+ * }
+ *
+ * 注意：函数会处理 ZIP 文件中的文件解压逻辑，但需确保核心的扩展格式正确注册。
+ */
 static void Game_open(char* path) {
 	LOG_info("Game_open\n");
 	memset(&game, 0, sizeof(game));
