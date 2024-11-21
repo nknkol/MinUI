@@ -80,10 +80,7 @@ Extras:
 | Miyoo A30 | MinUI-20240705-0 | Maintained |
 | Miyoo Mini | MinUI-20230922b-2 | Deprecated |
 | Miyoo Mini Plus | MinUI-20230922b-2 | Deprecated |
-| Powkiddy RGB30 | MinUI-20231014b-1 | Deprecated |
 | Trimui Brick | MinUI-20241028-0 | Active |
-| Trimui Smart | MinUI-20230922b-2 | Deprecated |
-| Trimui Smart Pro | MinUI-20231111b-2 | Maintained |
 
 > [!NOTE]
 > **Active** actively working on compatibility and improvements specific to this device  
