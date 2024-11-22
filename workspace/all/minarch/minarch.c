@@ -115,6 +115,27 @@ static struct Core {
 #define ZIP_LE_READ32(buf) ((uint32_t)(((uint8_t *)(buf))[3] << 24 | ((uint8_t *)(buf))[2] << 16 | ((uint8_t *)(buf))[1] << 8 | ((uint8_t *)(buf))[0]))
 typedef int (*Zip_extract_t)(FILE* zip, FILE* dst, size_t size);
 
+///////////////////////////////////////
+/**
+ * @brief 复制 ZIP 文件中的未压缩数据到目标文件。
+ *
+ * 功能：
+ * - 按块从 ZIP 文件中读取指定大小的数据，并写入目标文件。
+ * - 使用固定块大小（`ZIP_CHUNK_SIZE`）分批处理，避免内存占用过高。
+ *
+ * 用法：
+ * - 参数 `zip`：已打开的 ZIP 文件的文件指针，必须可读。
+ * - 参数 `dst`：目标文件的文件指针，必须可写。
+ * - 参数 `size`：需要复制的数据字节数。
+ * - 返回值：
+ *   - 返回 `0` 表示数据复制成功。
+ *   - 返回 `-1` 表示读取或写入操作失败。
+ *
+ * 注意：
+ * - 调用方需确保 `zip` 和 `dst` 文件指针有效且具备读写权限。
+ * - 读取和写入过程中若发生错误，会提前终止并返回 `-1`。
+ * - 确保 `size` 不超出源文件的可用数据大小。
+ */
 static int Zip_copy(FILE* zip, FILE* dst, size_t size) { // uncompressed?
 	uint8_t buffer[ZIP_CHUNK_SIZE];
 	while (size) {
@@ -125,6 +146,32 @@ static int Zip_copy(FILE* zip, FILE* dst, size_t size) { // uncompressed?
 	}
 	return 0;
 }
+
+///////////////////////////////////////
+/**
+ * @brief 解压缩 ZIP 文件中的压缩数据并写入目标文件。
+ *
+ * 功能：
+ * - 使用 zlib 库解压缩 ZIP 文件的压缩数据。
+ * - 按块读取压缩数据，逐步解压缩后写入目标文件。
+ * - 支持 GZIP 格式的无头解压（通过 `-MAX_WBITS` 参数）。
+ *
+ * 用法：
+ * - 参数 `zip`：指向包含压缩数据的源文件指针，必须可读。
+ * - 参数 `dst`：目标文件的文件指针，用于写入解压缩后的数据，必须可写。
+ * - 参数 `size`：需要解压缩的压缩数据大小（以字节为单位）。
+ * - 返回值：
+ *   - `Z_OK`：解压缩成功。
+ *   - `Z_ERRNO`：文件读取或写入错误。
+ *   - `Z_MEM_ERROR`：内存分配错误。
+ *   - `Z_DATA_ERROR`：压缩数据错误或格式不支持。
+ *
+ * 注意：
+ * - 调用方需确保 `zip` 和 `dst` 文件指针有效，且具备读写权限。
+ * - `size` 必须与压缩数据大小匹配，否则可能导致解压错误。
+ * - 使用 zlib 的 `inflate` 函数进行解压缩，需确保已正确链接 zlib 库。
+ * - 若解压过程中出现错误，函数会提前终止并释放相关资源。
+ */
 static int Zip_inflate(FILE* zip, FILE* dst, size_t size) { // compressed
 	z_stream stream = {0};
 	size_t have = 0;
@@ -183,7 +230,25 @@ static int Zip_inflate(FILE* zip, FILE* dst, size_t size) { // compressed
 }
 
 ///////////////////////////////////////
-
+/**
+ * @brief 定义全局游戏数据结构，存储游戏的路径、名称、数据和状态等信息。
+ *
+ * 字段说明：
+ * - `path`：游戏文件的完整路径。
+ * - `name`：游戏文件的基本名称（不含路径，可能考虑重命名为 `basename`）。
+ * - `m3u_path`：关联的 M3U 播放列表文件的路径（如果存在）。
+ * - `tmp_path`：解压后文件的临时存储路径（针对 ZIP 文件）。
+ * - `data`：加载到内存的游戏文件数据指针。
+ * - `size`：游戏文件的大小（以字节为单位）。
+ * - `is_open`：标志游戏文件是否已成功打开：
+ *   - `1` 表示游戏已成功加载。
+ *   - `0` 表示游戏未加载或加载失败。
+ *
+ * 用法：
+ * - 全局变量 `game` 用于存储当前加载的游戏相关信息。
+ * - 在加载游戏时，需对结构体字段进行初始化和清理。
+ * - 对于 ZIP 文件，`tmp_path` 会存储解压后的文件路径，需在使用后清理。
+ */
 static struct Game {
 	char path[MAX_PATH];
 	char name[MAX_PATH]; // TODO: rename to basename?
@@ -193,6 +258,7 @@ static struct Game {
 	size_t size;
 	int is_open;
 } game;
+
 /**
  * @brief 打开并初始化游戏文件，支持普通文件和 ZIP 压缩文件的处理。
  *
@@ -370,6 +436,26 @@ static void Game_open(char* path) {
 	
 	game.is_open = 1;
 }
+
+///////////////////////////////////////
+/**
+ * @brief 关闭当前加载的游戏并释放相关资源。
+ *
+ * 功能：
+ * - 释放加载到内存的游戏数据（如果存在）。
+ * - 删除解压后的临时文件（如果存在）。
+ * - 重置全局游戏状态为未打开（`is_open = 0`）。
+ * - 确保振动功能关闭（调用 `VIB_setStrength(0)`）。
+ *
+ * 用法：
+ * - 在游戏结束或需要切换游戏时调用。
+ * - 无需参数。
+ * - 函数自动检查并释放资源，无需调用方额外操作。
+ *
+ * 注意：
+ * - 调用后，全局 `game` 结构体的状态会被重置。
+ * - 确保在游戏未被占用（如未进行写操作）时调用此函数。
+ */
 static void Game_close(void) {
 	if (game.data) free(game.data);
 	if (game.tmp_path[0]) remove(game.tmp_path);
@@ -378,6 +464,31 @@ static void Game_close(void) {
 }
 
 static struct retro_disk_control_ext_callback disk_control_ext;
+
+///////////////////////////////////////
+/**
+ * @brief 更换游戏光盘（切换到指定路径的新游戏）。
+ *
+ * 功能：
+ * - 检查新光盘路径是否有效且不同于当前路径。
+ * - 关闭当前加载的游戏并释放相关资源。
+ * - 加载新光盘路径对应的游戏文件。
+ * - 更新核心的游戏信息并通知 UI 更新最近打开的记录。
+ *
+ * 用法：
+ * - 参数 `path`：新光盘的文件路径，需为有效且可读取的路径。
+ * - 函数逻辑：
+ *   1. 检查新路径是否有效，若无效或与当前路径相同，则直接返回。
+ *   2. 调用 `Game_close` 释放当前游戏资源。
+ *   3. 调用 `Game_open` 加载新路径的游戏。
+ *   4. 更新核心的游戏信息结构体 `retro_game_info`，并替换当前光盘的映像索引。
+ *   5. 调用 `putFile` 更新 UI 所需的最近记录文件。
+ *
+ * 注意：
+ * - 确保路径有效性，否则可能导致加载失败。
+ * - 调用前应确保当前游戏运行状态允许切换光盘。
+ * - 此函数会直接替换当前加载的游戏，无需手动清理。
+ */
 static void Game_changeDisc(char* path) {
 	
 	if (exactMatch(game.path, path) || !exists(path)) return;
@@ -395,7 +506,34 @@ static void Game_changeDisc(char* path) {
 }
 
 ///////////////////////////////////////
-
+/**
+ * @brief 获取和读取游戏的 SRAM 数据（保存文件）。
+ *
+ * 功能：
+ * 1. **`SRAM_getPath`**：
+ *    - 构造保存文件的完整路径。
+ *    - 路径格式为 `<core.saves_dir>/<game.name>.sav`。
+ *
+ * 2. **`SRAM_read`**：
+ *    - 检查核心是否支持 SRAM 数据。
+ *    - 获取保存文件路径并尝试打开。
+ *    - 将保存文件中的数据读取到核心的 SRAM 内存区。
+ *    - 处理可能的错误并关闭文件句柄。
+ *
+ * 用法：
+ * - `SRAM_getPath`：
+ *   - 参数 `filename`：接收保存路径的字符数组，需分配足够的空间（`MAX_PATH`）。
+ *   - 结果会将完整保存路径写入 `filename`。
+ *
+ * - `SRAM_read`：
+ *   - 无参数。
+ *   - 自动从保存路径加载 SRAM 数据。
+ *
+ * 注意：
+ * - `SRAM_read` 的读取依赖核心是否支持 `RETRO_MEMORY_SAVE_RAM`，且需核心实现正确的内存映射。
+ * - 调用 `SRAM_getPath` 时需确保 `filename` 缓冲区足够大。
+ * - 若保存文件不存在或读取失败，SRAM 数据保持未初始化状态。
+ */
 static void SRAM_getPath(char* filename) {
 	sprintf(filename, "%s/%s.sav", core.saves_dir, game.name);
 }
@@ -3520,6 +3658,142 @@ static char* getAlias(char* path, char* alias) {
 	}
 }
 
+static void Menu_scale(SDL_Surface* src, SDL_Surface* dst) {
+	// LOG_info("Menu_scale src: %ix%i dst: %ix%i\n", src->w,src->h,dst->w,dst->h);
+	
+	uint16_t* s = src->pixels;
+	uint16_t* d = dst->pixels;
+	
+	int sw = src->w;
+	int sh = src->h;
+	int sp = src->pitch / FIXED_BPP;
+	
+	int dw = dst->w;
+	int dh = dst->h;
+	int dp = dst->pitch / FIXED_BPP;
+	
+	int rx = 0;
+	int ry = 0;
+	int rw = dw;
+	int rh = dh;
+	
+	int scaling = screen_scaling;
+	if (scaling==SCALE_CROPPED && DEVICE_WIDTH==HDMI_WIDTH) {
+		scaling = SCALE_NATIVE;
+	}
+	if (scaling==SCALE_NATIVE) {
+		// LOG_info("native\n");
+		
+		rx = renderer.dst_x;
+		ry = renderer.dst_y;
+		rw = renderer.src_w;
+		rh = renderer.src_h;
+		if (renderer.scale) {
+			// LOG_info("scale: %i\n", renderer.scale);
+			rw *= renderer.scale;
+			rh *= renderer.scale;
+		}
+		else {
+			// LOG_info("forced crop\n"); // eg. fc on nano, vb on smart
+			rw -= renderer.src_x * 2;
+			rh -= renderer.src_y * 2;
+			sw = rw;
+			sh = rh;
+		}
+		
+		if (dw==DEVICE_WIDTH/2) {
+			// LOG_info("halve\n");
+			rx /= 2;
+			ry /= 2;
+			rw /= 2;
+			rh /= 2;
+		}
+	}
+	else if (scaling==SCALE_CROPPED) {
+		// LOG_info("cropped\n");
+		sw -= renderer.src_x * 2;
+		sh -= renderer.src_y * 2;
+
+		rx = renderer.dst_x;
+		ry = renderer.dst_y;
+		rw = sw * renderer.scale;
+		rh = sh * renderer.scale;
+		
+		if (dw==DEVICE_WIDTH/2) {
+			// LOG_info("halve\n");
+			rx /= 2;
+			ry /= 2;
+			rw /= 2;
+			rh /= 2;
+		}
+	}
+	
+	if (scaling==SCALE_ASPECT || rw>dw || rh>dh) {
+		// LOG_info("aspect\n");
+		double fixed_aspect_ratio = ((double)DEVICE_WIDTH) / DEVICE_HEIGHT;
+		int core_aspect = core.aspect_ratio * 1000;
+		int fixed_aspect = fixed_aspect_ratio * 1000;
+		
+		if (core_aspect>fixed_aspect) {
+			// LOG_info("letterbox\n");
+			rw = dw;
+			rh = rw / core.aspect_ratio;
+			rh += rh%2;
+		}
+		else if (core_aspect<fixed_aspect) {
+			// LOG_info("pillarbox\n");
+			rh = dh;
+			rw = rh * core.aspect_ratio;
+			rw += rw%2;
+			rw = (rw/8)*8; // probably necessary here since we're not scaling by an integer
+		}
+		else {
+			// LOG_info("perfect match\n");
+			rw = dw;
+			rh = dh;
+		}
+		
+		rx = (dw - rw) / 2;
+		ry = (dh - rh) / 2;
+	}
+	
+	// LOG_info("Menu_scale (r): %i,%i %ix%i\n",rx,ry,rw,rh);
+	// LOG_info("offset: %i,%i\n", renderer.src_x, renderer.src_y);
+
+	// dumb nearest neighbor scaling
+	int mx = (sw << 16) / rw;
+	int my = (sh << 16) / rh;
+	int ox = (renderer.src_x << 16);
+	int sx = ox;
+	int sy = (renderer.src_y << 16);
+	int lr = -1;
+	int sr = 0;
+	int dr = ry * dp;
+	int cp = dp * FIXED_BPP;
+	
+	// LOG_info("Menu_scale (s): %i,%i %ix%i\n",sx,sy,sw,sh);
+	// LOG_info("mx:%i my:%i sx>>16:%i sy>>16:%i\n",mx,my,((sx+mx) >> 16),((sy+my) >> 16));
+
+	for (int dy=0; dy<rh; dy++) {
+		sx = ox;
+		sr = (sy >> 16) * sp;
+		if (sr==lr) {
+			memcpy(d+dr,d+dr-dp,cp);
+		}
+		else {
+	        for (int dx=0; dx<rw; dx++) {
+	            d[dr + rx + dx] = s[sr + (sx >> 16)];
+				sx += mx;
+	        }
+		}
+		lr = sr;
+		sy += my;
+		dr += dp;
+    }
+	
+	// LOG_info("successful\n");
+}
+
 static int Menu_options(MenuList* list) {
 	MenuItem* items = list->items;
 	int type = list->type;
@@ -3528,7 +3802,15 @@ static int Menu_options(MenuList* list) {
 	int show_options = 1;
 	int show_settings = 0;
 	int await_input = 0;
-	
+	//：添加背景
+	SDL_Surface* backing = SDL_CreateRGBSurface(SDL_SWSURFACE,DEVICE_WIDTH,DEVICE_HEIGHT,FIXED_DEPTH,RGBA_MASK_565); 
+	Menu_scale(menu.bitmap, backing);
+	int restore_w = screen->w;
+	int restore_h = screen->h;
+	int restore_p = screen->pitch;
+	if (restore_w!=DEVICE_WIDTH || restore_h!=DEVICE_HEIGHT) {
+		screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
+	}
 	// dependent on option list offset top and bottom, eg. the gray triangles
 	int max_visible_options = (screen->h - ((SCALE1(PADDING + PILL_SIZE) * 2) + SCALE1(BUTTON_SIZE))) / SCALE1(BUTTON_SIZE); // 7 for 480, 10 for 720
 	
@@ -3591,6 +3873,8 @@ static int Menu_options(MenuList* list) {
 			dirty = 1;
 		}
 		else {
+			//：增加修改分辨率后刷新背景
+			int old_scaling = screen_scaling;
 			MenuItem* item = &items[selected];
 			if (item->values && item->values!=button_labels) { // not an input binding
 				if (PAD_justRepeated(BTN_LEFT)) {
@@ -3603,7 +3887,18 @@ static int Menu_options(MenuList* list) {
 				
 					if (item->on_change) item->on_change(list, selected);
 					else if (list->on_change) list->on_change(list, selected);
-				
+					//：检测分辨率变化后修改背景
+					if (screen_scaling!=old_scaling) {
+							selectScaler(renderer.true_w,renderer.true_h,renderer.src_p);
+						
+							restore_w = screen->w;
+							restore_h = screen->h;
+							restore_p = screen->pitch;
+							screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
+						
+							SDL_FillRect(backing, NULL, 0);
+							Menu_scale(menu.bitmap, backing);
+						}
 					dirty = 1;
 				}
 				else if (PAD_justRepeated(BTN_RIGHT)) {
@@ -3612,12 +3907,22 @@ static int Menu_options(MenuList* list) {
 				
 					if (item->on_change) item->on_change(list, selected);
 					else if (list->on_change) list->on_change(list, selected);
-				
+					//
+					if (screen_scaling!=old_scaling) {
+							selectScaler(renderer.true_w,renderer.true_h,renderer.src_p);
+						
+							restore_w = screen->w;
+							restore_h = screen->h;
+							restore_p = screen->pitch;
+							screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
+						
+							SDL_FillRect(backing, NULL, 0);
+							Menu_scale(menu.bitmap, backing);
+						}
 					dirty = 1;
 				}
 			}
 		}
-		
 		// uint32_t now = SDL_GetTicks();
 		if (PAD_justPressed(BTN_B)) { // || PAD_tappedMenu(now)
 			show_options = 0;
@@ -3678,83 +3983,26 @@ static int Menu_options(MenuList* list) {
 		
 		if (defer_menu && PAD_justReleased(BTN_MENU)) defer_menu = false;
 		//TODO：模拟器菜单UI统一
+		//PWR_update(&dirty, &show_setting, Menu_beforeSleep, Menu_afterSleep);
 		if (dirty) {
 			GFX_clear(screen);
-			GFX_blitHardwareGroup(screen, show_settings);
-			
+			//GFX_blitHardwareGroup(screen, show_settings);
+			///
+			SDL_BlitSurface(backing, NULL, screen, NULL);
+			SDL_BlitSurface(menu.overlay, NULL, screen, NULL);
+			///
 			char* desc = NULL;
 			SDL_Surface* text;
-
-			// if (type == MENU_LIST) {
-			// 	int mw = list->max_width;
-			// 	if (!mw) {
-			// 		// 固定宽度适配屏幕宽度，保留两边间距
-			// 		mw = screen->w - SCALE1(PADDING * 2);
-			// 		list->max_width = mw; // 缓存结果
-			// 	}
-
-			// 	// 起始位置：标题下方固定偏移
-			// 	int ox = SCALE1(PADDING); // 从左侧的内边距开始绘制
-			// 	int oy = SCALE1(PADDING + PILL_SIZE + 8); // 标题下方 8px
-
-			// 	int max_visible_rows = 5; // 固定最多显示 5 行
-			// 	int visible_end = MIN(start + max_visible_rows, end); // 动态调整显示的结束索引
-
-			// 	int selected_row = selected - start;
-
-			// 	for (int i = start, j = 0; i < visible_end; i++, j++) {
-			// 		MenuItem* item = &items[i];
-			// 		SDL_Color text_color = COLOR_WHITE;
-
-			// 		// 绘制选中项
-			// 		if (j == selected_row) {
-			// 			// 绘制选中项背景（白色 Pill）
-			// 			GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
-			// 				ox,
-			// 				oy + SCALE1(j * PILL_SIZE),
-			// 				mw,
-			// 				SCALE1(PILL_SIZE)
-			// 			});
-			// 			text_color = COLOR_BLACK; // 选中项文本为黑色
-
-			// 			// 如果有描述信息，保留引用供后续使用
-			// 			if (item->desc) desc = item->desc;
-			// 		} else {
-			// 			// 非选中项背景阴影
-			// 			text = TTF_RenderUTF8_Blended(font.small, item->name, COLOR_BLACK);
-			// 			SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-			// 				ox + SCALE1(OPTION_PADDING + 1), // 微偏移生成阴影
-			// 				oy + SCALE1(j * PILL_SIZE + 1)
-			// 			});
-			// 			SDL_FreeSurface(text);
-			// 		}
-
-			// 		// 绘制文本
-			// 		text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
-			// 		SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-			// 			ox + SCALE1(OPTION_PADDING), // 内间距
-			// 			oy + SCALE1(j * PILL_SIZE + 4) // 文本垂直居中调整
-			// 		});
-			// 		SDL_FreeSurface(text);
-			// 	}
-			// }
-			int show_setting = 0; // 默认值，可根据上下文修改
+			//int show_setting = 0; // 默认值，可根据上下文修改
+			int ow = GFX_blitHardwareGroup(screen, show_settings);
 			// path and string things
 			char rom_name[256]; // 用于存储当前游戏的显示名称
 			getDisplayName(game.name, rom_name);
 			getAlias(game.path, rom_name);
-			// // 绘制底部按钮
-			// if (show_setting && !GetHDMI()) {
-			// 	GFX_blitHardwareHints(screen, show_setting);
-			// } else {
-			// 	GFX_blitButtonGroup((char*[]) {BTN_SLEEP == BTN_POWER ? "POWER" : "MENU", "SLEEP", NULL}, 0, screen, 0);
-			// }
-			// GFX_blitButtonGroup((char*[]) {"B", "BACK", "A", "OKAY", NULL}, 1, screen, 1);
 
 			if (type == MENU_LIST) {
 				// 标题绘制
 				int ox, oy;
-				int ow = GFX_blitHardwareGroup(screen, show_setting);
 				int max_width = screen->w - SCALE1(PADDING * 2) - ow;
 
 				char display_name[256];
@@ -3814,9 +4062,9 @@ static int Menu_options(MenuList* list) {
 					});
 					SDL_FreeSurface(text);
 				}
-				// 屏幕更新
-				GFX_flip(screen);
-				dirty = 0;
+				// // 屏幕更新
+				// GFX_flip(screen);
+				// dirty = 0;
 			}
 			else if (type==MENU_FIXED) {
 				// NOTE: no need to calculate max width
@@ -3968,24 +4216,36 @@ static int Menu_options(MenuList* list) {
 			}
 			
 			if (!desc && list->desc) desc = list->desc;
-			
-			// if (desc) {
-			// 	int w,h;
-			// 	GFX_sizeText(font.tiny, desc, SCALE1(12), &w,&h);
-			// 	GFX_blitText(font.tiny, desc, SCALE1(12), COLOR_WHITE, screen, &(SDL_Rect){
-			// 		(screen->w - w) / 2,
-			// 		screen->h - SCALE1(PADDING) - h,
-			// 		w,h
-			// 	});
-			// }
-			//：修改
+			//int ow = GFX_blitHardwareGroup(screen, show_setting);
 			static int text_offset = 0;         // 滚动偏移量
 			static int scroll_direction = 1;   // 滚动方向：1 表示右移，-1 表示左移
-			int ow = GFX_blitHardwareGroup(screen, show_setting);
+			//int ow = GFX_blitHardwareGroup(screen, show_setting);
+			// if (desc) {
+			// 	int w, h;
+			// 	GFX_sizeText(font.tiny, desc, SCALE1(12), &w, &h);  // 计算文本尺寸
+			// 	int max_width = screen->w - 2 * SCALE1(PADDING);  // 文本可用最大宽度
+			// 	if (w > max_width) {  // 当文本宽度超出屏幕宽度时，启用滚动
+			// 		text_offset += scroll_direction * SCALE1(2);  // 根据滚动方向调整偏移量
+			// 		if (text_offset >= (w - max_width) || text_offset <= 0) {
+			// 			scroll_direction = -scroll_direction;  // 到达边界时改变方向
+			// 		}
+			// 	} else {
+			// 		text_offset = 0;  // 文本宽度小于最大宽度时不滚动
+			// 	}
+			// 	// 绘制文本，调整水平偏移
+			// 	GFX_blitText(font.tiny, desc, SCALE1(12), COLOR_WHITE, screen, &(SDL_Rect){
+			// 		(screen->w - max_width) / 2,  // 水平居中
+			// 		screen->h - SCALE1(PADDING *2) - ow,  // 垂直位置调整
+			// 		max_width, h  // 限定绘制区域的宽度
+			// 	});
+			// }
 			if (desc) {
 				int w, h;
-				GFX_sizeText(font.tiny, desc, SCALE1(12), &w, &h);  // 计算文本尺寸
+				GFX_sizeText(font.tiny, desc, SCALE1(12), &w, &h); // 计算文本尺寸
 				int max_width = screen->w - 2 * SCALE1(PADDING);  // 文本可用最大宽度
+				int line_height = ow; // 一行的高度限制
+				
+				// 检查是否需要滚动
 				if (w > max_width) {  // 当文本宽度超出屏幕宽度时，启用滚动
 					text_offset += scroll_direction * SCALE1(2);  // 根据滚动方向调整偏移量
 					if (text_offset >= (w - max_width) || text_offset <= 0) {
@@ -3994,29 +4254,24 @@ static int Menu_options(MenuList* list) {
 				} else {
 					text_offset = 0;  // 文本宽度小于最大宽度时不滚动
 				}
-				// 绘制文本，调整水平偏移
+				
+				// 限制文本高度为一行，并调整水平偏移
 				GFX_blitText(font.tiny, desc, SCALE1(12), COLOR_WHITE, screen, &(SDL_Rect){
 					(screen->w - max_width) / 2,  // 水平居中
-					screen->h - SCALE1(PADDING *2 + ow) - h,  // 垂直位置调整
-					max_width, h  // 限定绘制区域的宽度
+					screen->h - SCALE1(PADDING * 2) - line_height,  // 垂直位置调整
+					max_width, line_height / 2  // 限定绘制区域的宽度和高度
 				});
+			
 			}
-			//：修改
-			PWR_update(NULL, &show_settings, Menu_beforeSleep, Menu_afterSleep);
-			// if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
-			// else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
-			// GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
-			// 绘制底部按钮
-			if (show_setting && !GetHDMI()) {
-				GFX_blitHardwareHints(screen, show_setting);
-			} else {
-				GFX_blitButtonGroup((char*[]) {BTN_SLEEP == BTN_POWER ? "POWER" : "MENU", "SLEEP", NULL}, 0, screen, 0);
-			}
-			GFX_blitButtonGroup((char*[]) {"B", "BACK", "A", "OKAY", NULL}, 1, screen, 1);
-
+			if (show_settings && !GetHDMI()) GFX_blitHardwareHints(screen, show_settings);
+			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
+			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
+			
 			GFX_flip(screen);
 			dirty = 0;
 		}
+		//底部按钮
+		
 		else GFX_sync();
 	}
 	
@@ -4024,142 +4279,6 @@ static int Menu_options(MenuList* list) {
 	// GFX_flip(screen);
 	
 	return 0;
-}
-
-static void Menu_scale(SDL_Surface* src, SDL_Surface* dst) {
-	// LOG_info("Menu_scale src: %ix%i dst: %ix%i\n", src->w,src->h,dst->w,dst->h);
-	
-	uint16_t* s = src->pixels;
-	uint16_t* d = dst->pixels;
-	
-	int sw = src->w;
-	int sh = src->h;
-	int sp = src->pitch / FIXED_BPP;
-	
-	int dw = dst->w;
-	int dh = dst->h;
-	int dp = dst->pitch / FIXED_BPP;
-	
-	int rx = 0;
-	int ry = 0;
-	int rw = dw;
-	int rh = dh;
-	
-	int scaling = screen_scaling;
-	if (scaling==SCALE_CROPPED && DEVICE_WIDTH==HDMI_WIDTH) {
-		scaling = SCALE_NATIVE;
-	}
-	if (scaling==SCALE_NATIVE) {
-		// LOG_info("native\n");
-		
-		rx = renderer.dst_x;
-		ry = renderer.dst_y;
-		rw = renderer.src_w;
-		rh = renderer.src_h;
-		if (renderer.scale) {
-			// LOG_info("scale: %i\n", renderer.scale);
-			rw *= renderer.scale;
-			rh *= renderer.scale;
-		}
-		else {
-			// LOG_info("forced crop\n"); // eg. fc on nano, vb on smart
-			rw -= renderer.src_x * 2;
-			rh -= renderer.src_y * 2;
-			sw = rw;
-			sh = rh;
-		}
-		
-		if (dw==DEVICE_WIDTH/2) {
-			// LOG_info("halve\n");
-			rx /= 2;
-			ry /= 2;
-			rw /= 2;
-			rh /= 2;
-		}
-	}
-	else if (scaling==SCALE_CROPPED) {
-		// LOG_info("cropped\n");
-		sw -= renderer.src_x * 2;
-		sh -= renderer.src_y * 2;
-
-		rx = renderer.dst_x;
-		ry = renderer.dst_y;
-		rw = sw * renderer.scale;
-		rh = sh * renderer.scale;
-		
-		if (dw==DEVICE_WIDTH/2) {
-			// LOG_info("halve\n");
-			rx /= 2;
-			ry /= 2;
-			rw /= 2;
-			rh /= 2;
-		}
-	}
-	
-	if (scaling==SCALE_ASPECT || rw>dw || rh>dh) {
-		// LOG_info("aspect\n");
-		double fixed_aspect_ratio = ((double)DEVICE_WIDTH) / DEVICE_HEIGHT;
-		int core_aspect = core.aspect_ratio * 1000;
-		int fixed_aspect = fixed_aspect_ratio * 1000;
-		
-		if (core_aspect>fixed_aspect) {
-			// LOG_info("letterbox\n");
-			rw = dw;
-			rh = rw / core.aspect_ratio;
-			rh += rh%2;
-		}
-		else if (core_aspect<fixed_aspect) {
-			// LOG_info("pillarbox\n");
-			rh = dh;
-			rw = rh * core.aspect_ratio;
-			rw += rw%2;
-			rw = (rw/8)*8; // probably necessary here since we're not scaling by an integer
-		}
-		else {
-			// LOG_info("perfect match\n");
-			rw = dw;
-			rh = dh;
-		}
-		
-		rx = (dw - rw) / 2;
-		ry = (dh - rh) / 2;
-	}
-	
-	// LOG_info("Menu_scale (r): %i,%i %ix%i\n",rx,ry,rw,rh);
-	// LOG_info("offset: %i,%i\n", renderer.src_x, renderer.src_y);
-
-	// dumb nearest neighbor scaling
-	int mx = (sw << 16) / rw;
-	int my = (sh << 16) / rh;
-	int ox = (renderer.src_x << 16);
-	int sx = ox;
-	int sy = (renderer.src_y << 16);
-	int lr = -1;
-	int sr = 0;
-	int dr = ry * dp;
-	int cp = dp * FIXED_BPP;
-	
-	// LOG_info("Menu_scale (s): %i,%i %ix%i\n",sx,sy,sw,sh);
-	// LOG_info("mx:%i my:%i sx>>16:%i sy>>16:%i\n",mx,my,((sx+mx) >> 16),((sy+my) >> 16));
-
-	for (int dy=0; dy<rh; dy++) {
-		sx = ox;
-		sr = (sy >> 16) * sp;
-		if (sr==lr) {
-			memcpy(d+dr,d+dr-dp,cp);
-		}
-		else {
-	        for (int dx=0; dx<rw; dx++) {
-	            d[dr + rx + dx] = s[sr + (sx >> 16)];
-				sx += mx;
-	        }
-		}
-		lr = sr;
-		sy += my;
-		dr += dp;
-    }
-	
-	// LOG_info("successful\n");
 }
 
 static void Menu_initState(void) {
@@ -4238,46 +4357,7 @@ static void Menu_loadState(void) {
 	}
 }
 
-//：修改
-// static char* getAlias(char* path, char* alias) {
-// 	// LOG_info("alias path: %s\n", path);
-// 	char* tmp;
-// 	char map_path[256];
-// 	strcpy(map_path, path);
-// 	tmp = strrchr(map_path, '/');
-// 	if (tmp) {
-// 		tmp += 1;
-// 		strcpy(tmp, "map.txt");
-// 		// LOG_info("map_path: %s\n", map_path);
-// 	}
-// 	char* file_name = strrchr(path,'/');
-// 	if (file_name) file_name += 1;
-// 	// LOG_info("file_name: %s\n", file_name);
-	
-// 	if (exists(map_path)) {
-// 		FILE* file = fopen(map_path, "r");
-// 		if (file) {
-// 			char line[256];
-// 			while (fgets(line,256,file)!=NULL) {
-// 				normalizeNewline(line);
-// 				trimTrailingNewlines(line);
-// 				if (strlen(line)==0) continue; // skip empty lines
-			
-// 				tmp = strchr(line,'\t');
-// 				if (tmp) {
-// 					tmp[0] = '\0';
-// 					char* key = line;
-// 					char* value = tmp+1;
-// 					if (exactMatch(file_name,key)) {
-// 						strcpy(alias, value);
-// 						break;
-// 					}
-// 				}
-// 			}
-// 			fclose(file);
-// 		}
-// 	}
-// }
+
 
 static void Menu_loop(void) {
 	menu.bitmap = SDL_CreateRGBSurfaceFrom(renderer.src, renderer.true_w, renderer.true_h, FIXED_DEPTH, renderer.src_p, RGBA_MASK_565);
@@ -4286,12 +4366,12 @@ static void Menu_loop(void) {
 	SDL_Surface* backing = SDL_CreateRGBSurface(SDL_SWSURFACE,DEVICE_WIDTH,DEVICE_HEIGHT,FIXED_DEPTH,RGBA_MASK_565); 
 	Menu_scale(menu.bitmap, backing);
 	
-	int restore_w = screen->w;
-	int restore_h = screen->h;
-	int restore_p = screen->pitch;
-	if (restore_w!=DEVICE_WIDTH || restore_h!=DEVICE_HEIGHT) {
-		screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
-	}
+	// int restore_w = screen->w;
+	// int restore_h = screen->h;
+	// int restore_p = screen->pitch;
+	// if (restore_w!=DEVICE_WIDTH || restore_h!=DEVICE_HEIGHT) {
+	// 	screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
+	// }
 	
 	SRAM_write();
 	RTC_write();
@@ -4422,19 +4502,19 @@ static void Menu_loop(void) {
 						show_menu = 0;
 					}
 					else {
-						int old_scaling = screen_scaling;
+						//int old_scaling = screen_scaling;
 						Menu_options(&options_menu);
-						if (screen_scaling!=old_scaling) {
-							selectScaler(renderer.true_w,renderer.true_h,renderer.src_p);
+						// if (screen_scaling!=old_scaling) {
+						// 	selectScaler(renderer.true_w,renderer.true_h,renderer.src_p);
 						
-							restore_w = screen->w;
-							restore_h = screen->h;
-							restore_p = screen->pitch;
-							screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
+						// 	restore_w = screen->w;
+						// 	restore_h = screen->h;
+						// 	restore_p = screen->pitch;
+						// 	screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
 						
-							SDL_FillRect(backing, NULL, 0);
-							Menu_scale(menu.bitmap, backing);
-						}
+						// 	SDL_FillRect(backing, NULL, 0);
+						// 	Menu_scale(menu.bitmap, backing);
+						// }
 						dirty = 1;
 					}
 				}
@@ -4486,7 +4566,7 @@ static void Menu_loop(void) {
 			if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
 			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
 			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
-			
+			//GFX_flip(screen);
 			// list NOTE：菜单列表UI
 			oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 			for (int i=0; i<MENU_ITEM_COUNT; i++) {
