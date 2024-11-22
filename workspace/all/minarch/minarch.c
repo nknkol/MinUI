@@ -809,10 +809,10 @@ enum {
 	CONFIG_CONSOLE,
 	CONFIG_GAME,
 };
-
+//：修改//Native uses integer scaling. Aspect uses core\nreported aspect ratio. Fullscreen has non-square\npixels. Cropped is integer scaled then cropped."
 static inline char* getScreenScalingDesc(void) {
 	if (GFX_supportsOverscan()) {
-		return "Native uses integer scaling. Aspect uses core\nreported aspect ratio. Fullscreen has non-square\npixels. Cropped is integer scaled then cropped.";
+		return "Native uses integer scaling. Aspect uses core reported aspect ratio. Fullscreen has non-square pixels. Cropped is integer scaled then cropped.";
 	}
 	else {
 		return "Native uses integer scaling.\nAspect uses core reported aspect ratio.\nFullscreen has non-square pixels.";
@@ -3465,6 +3465,46 @@ static void OptionSaveChanges_updateDesc(void) {
 }
 
 #define OPTION_PADDING 8
+//：修改
+static char* getAlias(char* path, char* alias) {
+	// LOG_info("alias path: %s\n", path);
+	char* tmp;
+	char map_path[256];
+	strcpy(map_path, path);
+	tmp = strrchr(map_path, '/');
+	if (tmp) {
+		tmp += 1;
+		strcpy(tmp, "map.txt");
+		// LOG_info("map_path: %s\n", map_path);
+	}
+	char* file_name = strrchr(path,'/');
+	if (file_name) file_name += 1;
+	// LOG_info("file_name: %s\n", file_name);
+	
+	if (exists(map_path)) {
+		FILE* file = fopen(map_path, "r");
+		if (file) {
+			char line[256];
+			while (fgets(line,256,file)!=NULL) {
+				normalizeNewline(line);
+				trimTrailingNewlines(line);
+				if (strlen(line)==0) continue; // skip empty lines
+			
+				tmp = strchr(line,'\t');
+				if (tmp) {
+					tmp[0] = '\0';
+					char* key = line;
+					char* value = tmp+1;
+					if (exactMatch(file_name,key)) {
+						strcpy(alias, value);
+						break;
+					}
+				}
+			}
+			fclose(file);
+		}
+	}
+}
 
 static int Menu_options(MenuList* list) {
 	MenuItem* items = list->items;
@@ -3623,7 +3663,7 @@ static int Menu_options(MenuList* list) {
 		if (!defer_menu) PWR_update(&dirty, &show_settings, Menu_beforeSleep, Menu_afterSleep);
 		
 		if (defer_menu && PAD_justReleased(BTN_MENU)) defer_menu = false;
-		///TODO：模拟器菜单UI统一
+		//TODO：模拟器菜单UI统一
 		if (dirty) {
 			GFX_clear(screen);
 			GFX_blitHardwareGroup(screen, show_settings);
@@ -3631,37 +3671,138 @@ static int Menu_options(MenuList* list) {
 			char* desc = NULL;
 			SDL_Surface* text;
 
-			if (type==MENU_LIST) {
-				if (type == MENU_LIST) {
-				int mw = screen->w - SCALE1(PADDING * 2); // 菜单宽度
-    			int ox = SCALE1(PADDING);                // 菜单起始位置
-				int oy = SCALE1(PADDING + PILL_SIZE);
-				int selected_row = selected - start;
-					for (int i = start, j = 0; i < end; i++, j++) {
-						MenuItem* item = &items[i];
-						SDL_Color text_color = COLOR_WHITE;
+			// if (type == MENU_LIST) {
+			// 	int mw = list->max_width;
+			// 	if (!mw) {
+			// 		// 固定宽度适配屏幕宽度，保留两边间距
+			// 		mw = screen->w - SCALE1(PADDING * 2);
+			// 		list->max_width = mw; // 缓存结果
+			// 	}
 
-						// 绘制选中项背景
-						if (j == selected_row) {
-							GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-								ox,
-								oy + SCALE1(j * BUTTON_SIZE),
-								mw, // 菜单宽度
-								SCALE1(BUTTON_SIZE)
-							});
-							text_color = COLOR_BLACK; // 选中项文字为黑色
-							if (item->desc) desc = item->desc; // 记录描述文本
-						}
+			// 	// 起始位置：标题下方固定偏移
+			// 	int ox = SCALE1(PADDING); // 从左侧的内边距开始绘制
+			// 	int oy = SCALE1(PADDING + PILL_SIZE + 8); // 标题下方 8px
 
-						// 绘制菜单项文本
-						SDL_Surface* text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
-						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-							ox + SCALE1(OPTION_PADDING),          // 左对齐
-							oy + SCALE1((j * BUTTON_SIZE) + 1)    // 垂直位置
+			// 	int max_visible_rows = 5; // 固定最多显示 5 行
+			// 	int visible_end = MIN(start + max_visible_rows, end); // 动态调整显示的结束索引
+
+			// 	int selected_row = selected - start;
+
+			// 	for (int i = start, j = 0; i < visible_end; i++, j++) {
+			// 		MenuItem* item = &items[i];
+			// 		SDL_Color text_color = COLOR_WHITE;
+
+			// 		// 绘制选中项
+			// 		if (j == selected_row) {
+			// 			// 绘制选中项背景（白色 Pill）
+			// 			GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
+			// 				ox,
+			// 				oy + SCALE1(j * PILL_SIZE),
+			// 				mw,
+			// 				SCALE1(PILL_SIZE)
+			// 			});
+			// 			text_color = COLOR_BLACK; // 选中项文本为黑色
+
+			// 			// 如果有描述信息，保留引用供后续使用
+			// 			if (item->desc) desc = item->desc;
+			// 		} else {
+			// 			// 非选中项背景阴影
+			// 			text = TTF_RenderUTF8_Blended(font.small, item->name, COLOR_BLACK);
+			// 			SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+			// 				ox + SCALE1(OPTION_PADDING + 1), // 微偏移生成阴影
+			// 				oy + SCALE1(j * PILL_SIZE + 1)
+			// 			});
+			// 			SDL_FreeSurface(text);
+			// 		}
+
+			// 		// 绘制文本
+			// 		text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+			// 		SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+			// 			ox + SCALE1(OPTION_PADDING), // 内间距
+			// 			oy + SCALE1(j * PILL_SIZE + 4) // 文本垂直居中调整
+			// 		});
+			// 		SDL_FreeSurface(text);
+			// 	}
+			// }
+			int show_setting = 0; // 默认值，可根据上下文修改
+			// path and string things
+			char rom_name[256]; // 用于存储当前游戏的显示名称
+			getDisplayName(game.name, rom_name);
+			getAlias(game.path, rom_name);
+			// // 绘制底部按钮
+			// if (show_setting && !GetHDMI()) {
+			// 	GFX_blitHardwareHints(screen, show_setting);
+			// } else {
+			// 	GFX_blitButtonGroup((char*[]) {BTN_SLEEP == BTN_POWER ? "POWER" : "MENU", "SLEEP", NULL}, 0, screen, 0);
+			// }
+			// GFX_blitButtonGroup((char*[]) {"B", "BACK", "A", "OKAY", NULL}, 1, screen, 1);
+
+			if (type == MENU_LIST) {
+				// 标题绘制
+				int ox, oy;
+				int ow = GFX_blitHardwareGroup(screen, show_setting);
+				int max_width = screen->w - SCALE1(PADDING * 2) - ow;
+
+				char display_name[256];
+				int text_width = GFX_truncateText(font.large, rom_name, display_name, max_width, SCALE1(BUTTON_PADDING * 2));
+				max_width = MIN(max_width, text_width);
+
+				SDL_Surface* title_text = TTF_RenderUTF8_Blended(font.large, display_name, COLOR_WHITE);
+				GFX_blitPill(ASSET_BLACK_PILL, screen, &(SDL_Rect){
+					SCALE1(PADDING),
+					SCALE1(PADDING),
+					max_width,
+					SCALE1(PILL_SIZE)
+				});
+				SDL_BlitSurface(title_text, &(SDL_Rect){
+					0,
+					0,
+					max_width - SCALE1(BUTTON_PADDING * 2),
+					title_text->h
+				}, screen, &(SDL_Rect){
+					SCALE1(PADDING + BUTTON_PADDING),
+					SCALE1(PADDING + 4)
+				});
+				SDL_FreeSurface(title_text);
+
+				// 菜单项起始位置，参照 b.c 的间距和高度
+				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
+
+				// 绘制菜单项
+				for (int i = start, j = 0; i < end; i++, j++) {
+					MenuItem* item = &items[i];
+					SDL_Color text_color = COLOR_WHITE;
+
+					if (i == selected) {
+						// 选中项背景
+						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
+							SCALE1(PADDING),
+							SCALE1(oy + PADDING + (j * PILL_SIZE)),
+							screen->w - SCALE1(PADDING * 2),
+							SCALE1(PILL_SIZE)
 						});
-						SDL_FreeSurface(text);
+						text_color = COLOR_BLACK;
+					} else {
+						// 非选中项背景阴影
+						SDL_Surface* shadow_text = TTF_RenderUTF8_Blended(font.large, item->name, COLOR_BLACK);
+						SDL_BlitSurface(shadow_text, NULL, screen, &(SDL_Rect){
+							SCALE1(PADDING + BUTTON_PADDING + 2),
+							SCALE1(oy + PADDING + (j * PILL_SIZE) + 5)
+						});
+						SDL_FreeSurface(shadow_text);
 					}
+
+					// 绘制文本
+					SDL_Surface* text = TTF_RenderUTF8_Blended(font.large, item->name, text_color);
+					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+						SCALE1(PADDING + BUTTON_PADDING),
+						SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
+					});
+					SDL_FreeSurface(text);
 				}
+				// 屏幕更新
+				GFX_flip(screen);
+				dirty = 0;
 			}
 			else if (type==MENU_FIXED) {
 				// NOTE: no need to calculate max width
@@ -3814,16 +3955,51 @@ static int Menu_options(MenuList* list) {
 			
 			if (!desc && list->desc) desc = list->desc;
 			
+			// if (desc) {
+			// 	int w,h;
+			// 	GFX_sizeText(font.tiny, desc, SCALE1(12), &w,&h);
+			// 	GFX_blitText(font.tiny, desc, SCALE1(12), COLOR_WHITE, screen, &(SDL_Rect){
+			// 		(screen->w - w) / 2,
+			// 		screen->h - SCALE1(PADDING) - h,
+			// 		w,h
+			// 	});
+			// }
+			//：修改
+			static int text_offset = 0;         // 滚动偏移量
+			static int scroll_direction = 1;   // 滚动方向：1 表示右移，-1 表示左移
+			int ow = GFX_blitHardwareGroup(screen, show_setting);
 			if (desc) {
-				int w,h;
-				GFX_sizeText(font.tiny, desc, SCALE1(12), &w,&h);
+				int w, h;
+				GFX_sizeText(font.tiny, desc, SCALE1(12), &w, &h);  // 计算文本尺寸
+				int max_width = screen->w - 2 * SCALE1(PADDING);  // 文本可用最大宽度
+				if (w > max_width) {  // 当文本宽度超出屏幕宽度时，启用滚动
+					text_offset += scroll_direction * SCALE1(2);  // 根据滚动方向调整偏移量
+					if (text_offset >= (w - max_width) || text_offset <= 0) {
+						scroll_direction = -scroll_direction;  // 到达边界时改变方向
+					}
+				} else {
+					text_offset = 0;  // 文本宽度小于最大宽度时不滚动
+				}
+				// 绘制文本，调整水平偏移
 				GFX_blitText(font.tiny, desc, SCALE1(12), COLOR_WHITE, screen, &(SDL_Rect){
-					(screen->w - w) / 2,
-					screen->h - SCALE1(PADDING) - h,
-					w,h
+					(screen->w - max_width) / 2,  // 水平居中
+					screen->h - SCALE1(PADDING *2 + ow) - h,  // 垂直位置调整
+					max_width, h  // 限定绘制区域的宽度
 				});
 			}
-			
+			//：修改
+			PWR_update(NULL, &show_settings, Menu_beforeSleep, Menu_afterSleep);
+			// if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
+			// else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
+			// GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
+			// 绘制底部按钮
+			if (show_setting && !GetHDMI()) {
+				GFX_blitHardwareHints(screen, show_setting);
+			} else {
+				GFX_blitButtonGroup((char*[]) {BTN_SLEEP == BTN_POWER ? "POWER" : "MENU", "SLEEP", NULL}, 0, screen, 0);
+			}
+			GFX_blitButtonGroup((char*[]) {"B", "BACK", "A", "OKAY", NULL}, 1, screen, 1);
+
 			GFX_flip(screen);
 			dirty = 0;
 		}
@@ -4048,45 +4224,46 @@ static void Menu_loadState(void) {
 	}
 }
 
-static char* getAlias(char* path, char* alias) {
-	// LOG_info("alias path: %s\n", path);
-	char* tmp;
-	char map_path[256];
-	strcpy(map_path, path);
-	tmp = strrchr(map_path, '/');
-	if (tmp) {
-		tmp += 1;
-		strcpy(tmp, "map.txt");
-		// LOG_info("map_path: %s\n", map_path);
-	}
-	char* file_name = strrchr(path,'/');
-	if (file_name) file_name += 1;
-	// LOG_info("file_name: %s\n", file_name);
+//：修改
+// static char* getAlias(char* path, char* alias) {
+// 	// LOG_info("alias path: %s\n", path);
+// 	char* tmp;
+// 	char map_path[256];
+// 	strcpy(map_path, path);
+// 	tmp = strrchr(map_path, '/');
+// 	if (tmp) {
+// 		tmp += 1;
+// 		strcpy(tmp, "map.txt");
+// 		// LOG_info("map_path: %s\n", map_path);
+// 	}
+// 	char* file_name = strrchr(path,'/');
+// 	if (file_name) file_name += 1;
+// 	// LOG_info("file_name: %s\n", file_name);
 	
-	if (exists(map_path)) {
-		FILE* file = fopen(map_path, "r");
-		if (file) {
-			char line[256];
-			while (fgets(line,256,file)!=NULL) {
-				normalizeNewline(line);
-				trimTrailingNewlines(line);
-				if (strlen(line)==0) continue; // skip empty lines
+// 	if (exists(map_path)) {
+// 		FILE* file = fopen(map_path, "r");
+// 		if (file) {
+// 			char line[256];
+// 			while (fgets(line,256,file)!=NULL) {
+// 				normalizeNewline(line);
+// 				trimTrailingNewlines(line);
+// 				if (strlen(line)==0) continue; // skip empty lines
 			
-				tmp = strchr(line,'\t');
-				if (tmp) {
-					tmp[0] = '\0';
-					char* key = line;
-					char* value = tmp+1;
-					if (exactMatch(file_name,key)) {
-						strcpy(alias, value);
-						break;
-					}
-				}
-			}
-			fclose(file);
-		}
-	}
-}
+// 				tmp = strchr(line,'\t');
+// 				if (tmp) {
+// 					tmp[0] = '\0';
+// 					char* key = line;
+// 					char* value = tmp+1;
+// 					if (exactMatch(file_name,key)) {
+// 						strcpy(alias, value);
+// 						break;
+// 					}
+// 				}
+// 			}
+// 			fclose(file);
+// 		}
+// 	}
+// }
 
 static void Menu_loop(void) {
 	menu.bitmap = SDL_CreateRGBSurfaceFrom(renderer.src, renderer.true_w, renderer.true_h, FIXED_DEPTH, renderer.src_p, RGBA_MASK_565);
@@ -4258,7 +4435,7 @@ static void Menu_loop(void) {
 		}
 
 		PWR_update(&dirty, &show_setting, Menu_beforeSleep, Menu_afterSleep);
-		//TODO：菜单UI统一
+		//TODO：固定菜单UI统一
 		if (dirty) {
 			GFX_clear(screen);
 			
@@ -4291,12 +4468,12 @@ static void Menu_loop(void) {
 				SCALE1(PADDING+4)
 			});
 			SDL_FreeSurface(text);
-			
+			//TODO：底部按钮
 			if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
 			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
 			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
 			
-			// list
+			// list NOTE：菜单列表UI
 			oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 			for (int i=0; i<MENU_ITEM_COUNT; i++) {
 				char* item = menu.items[i];
@@ -4349,8 +4526,7 @@ static void Menu_loop(void) {
 				});
 				SDL_FreeSurface(text);
 			}
-			
-			// slot preview
+			// slot preview NOTO：保存预览
 			if (selected==ITEM_SAVE || selected==ITEM_LOAD) {
 				#define WINDOW_RADIUS 4 // TODO: this logic belongs in blitRect?
 				#define PAGINATION_HEIGHT 6
@@ -4395,7 +4571,7 @@ static void Menu_loop(void) {
 					else GFX_blitAsset(ASSET_DOT, NULL, screen, &(SDL_Rect){ox+SCALE1(i*15)+4,oy+SCALE1(2)});
 				}
 			}
-	
+
 			GFX_flip(screen);
 			dirty = 0;
 		}

@@ -773,6 +773,7 @@ int GFX_blitHardwareGroup(SDL_Surface* dst, int show_setting) {
 	
 	return ow;
 }
+//：音量调节
 void GFX_blitHardwareHints(SDL_Surface* dst, int show_setting) {
 	if (BTN_MOD_VOLUME==BTN_SELECT && BTN_MOD_BRIGHTNESS==BTN_START) {
 		if (show_setting==1) GFX_blitButtonGroup((char*[]){ "SELECT","VOLUME",  NULL }, 0, dst, 0);
