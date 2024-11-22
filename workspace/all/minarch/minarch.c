@@ -3999,33 +3999,33 @@ static int Menu_options(MenuList* list) {
 			char rom_name[256]; // 用于存储当前游戏的显示名称
 			getDisplayName(game.name, rom_name);
 			getAlias(game.path, rom_name);
+			// 标题绘制
+			int ox, oy;
+			int max_width = screen->w - SCALE1(PADDING * 2) - ow;
+
+			char display_name[256];
+			int text_width = GFX_truncateText(font.large, rom_name, display_name, max_width, SCALE1(BUTTON_PADDING * 2));
+			max_width = MIN(max_width, text_width);
+
+			SDL_Surface* title_text = TTF_RenderUTF8_Blended(font.large, display_name, COLOR_WHITE);
+			GFX_blitPill(ASSET_BLACK_PILL, screen, &(SDL_Rect){
+				SCALE1(PADDING),
+				SCALE1(PADDING),
+				max_width,
+				SCALE1(PILL_SIZE)
+			});
+			SDL_BlitSurface(title_text, &(SDL_Rect){
+				0,
+				0,
+				max_width - SCALE1(BUTTON_PADDING * 2),
+				title_text->h
+			}, screen, &(SDL_Rect){
+				SCALE1(PADDING + BUTTON_PADDING),
+				SCALE1(PADDING + 4)
+			});
+			SDL_FreeSurface(title_text);
 
 			if (type == MENU_LIST) {
-				// 标题绘制
-				int ox, oy;
-				int max_width = screen->w - SCALE1(PADDING * 2) - ow;
-
-				char display_name[256];
-				int text_width = GFX_truncateText(font.large, rom_name, display_name, max_width, SCALE1(BUTTON_PADDING * 2));
-				max_width = MIN(max_width, text_width);
-
-				SDL_Surface* title_text = TTF_RenderUTF8_Blended(font.large, display_name, COLOR_WHITE);
-				GFX_blitPill(ASSET_BLACK_PILL, screen, &(SDL_Rect){
-					SCALE1(PADDING),
-					SCALE1(PADDING),
-					max_width,
-					SCALE1(PILL_SIZE)
-				});
-				SDL_BlitSurface(title_text, &(SDL_Rect){
-					0,
-					0,
-					max_width - SCALE1(BUTTON_PADDING * 2),
-					title_text->h
-				}, screen, &(SDL_Rect){
-					SCALE1(PADDING + BUTTON_PADDING),
-					SCALE1(PADDING + 4)
-				});
-				SDL_FreeSurface(title_text);
 
 				// 菜单项起始位置，参照 b.c 的间距和高度
 				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
@@ -4034,7 +4034,6 @@ static int Menu_options(MenuList* list) {
 				for (int i = start, j = 0; i < end; i++, j++) {
 					MenuItem* item = &items[i];
 					SDL_Color text_color = COLOR_WHITE;
-
 					if (i == selected) {
 						// 选中项背景
 						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
@@ -4053,7 +4052,6 @@ static int Menu_options(MenuList* list) {
 						});
 						SDL_FreeSurface(shadow_text);
 					}
-
 					// 绘制文本
 					SDL_Surface* text = TTF_RenderUTF8_Blended(font.large, item->name, text_color);
 					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
@@ -4062,67 +4060,119 @@ static int Menu_options(MenuList* list) {
 					});
 					SDL_FreeSurface(text);
 				}
-				// // 屏幕更新
-				// GFX_flip(screen);
-				// dirty = 0;
 			}
-			else if (type==MENU_FIXED) {
-				// NOTE: no need to calculate max width
-				int mw = screen->w - SCALE1(PADDING*2);
-				// int lw,rw;
-				// lw = rw = mw / 2;
-				int ox,oy;
+			else if (type == MENU_FIXED) {
+				int mw = screen->w - SCALE1(PADDING * 2);
+				int ox, oy;
 				ox = oy = SCALE1(PADDING);
 				oy += SCALE1(PILL_SIZE);
-				
+
 				int selected_row = selected - start;
-				for (int i=start,j=0; i<end; i++,j++) {
+
+				for (int i = start, j = 0; i < end; i++, j++) {
 					MenuItem* item = &items[i];
 					SDL_Color text_color = COLOR_WHITE;
 
-					if (j==selected_row) {
-						// gray pill
-						GFX_blitPill(ASSET_OPTION, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
+					if (j == selected_row) {
+						// 绘制选中项背景
+						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
+							SCALE1(PADDING),
+							SCALE1(oy + (j * PILL_SIZE)),
 							mw,
-							SCALE1(BUTTON_SIZE)
-						});
-					}
-					
-					if (item->value>=0) {
-						text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
-						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-							ox + mw - text->w - SCALE1(OPTION_PADDING),
-							oy+SCALE1((j*BUTTON_SIZE)+3)
-						});
-						SDL_FreeSurface(text);
-					}
-					
-					// TODO: blit a black pill on unselected rows (to cover longer item->values?) or truncate longer item->values?
-					if (j==selected_row) {
-						// white pill
-						int w = 0;
-						TTF_SizeUTF8(font.small, item->name, &w, NULL);
-						w += SCALE1(OPTION_PADDING*2);
-						GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
-							w,
-							SCALE1(BUTTON_SIZE)
+							SCALE1(PILL_SIZE)
 						});
 						text_color = COLOR_BLACK;
-						
-						if (item->desc) desc = item->desc;
+					} else {
+						// 绘制未选中项的阴影
+						SDL_Surface* shadow_text = TTF_RenderUTF8_Blended(font.small, item->name, COLOR_BLACK);
+						SDL_BlitSurface(shadow_text, NULL, screen, &(SDL_Rect){
+							SCALE1(PADDING + BUTTON_PADDING + 2),
+							SCALE1(oy + (j * PILL_SIZE) + 5)
+						});
+						SDL_FreeSurface(shadow_text);
 					}
-					text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+
+					// 绘制附加值（始终白色）
+					if (item->value >= 0) {
+						SDL_Surface* value_text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE);
+						SDL_BlitSurface(value_text, NULL, screen, &(SDL_Rect){
+							mw - value_text->w - SCALE1(PADDING + OPTION_PADDING),
+							SCALE1(oy + (j * PILL_SIZE) + 4)
+						});
+						SDL_FreeSurface(value_text);
+					}
+
+					// 绘制文本
+					SDL_Surface* text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
 					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						ox+SCALE1(OPTION_PADDING),
-						oy+SCALE1((j*BUTTON_SIZE)+1)
+						SCALE1(PADDING + BUTTON_PADDING),
+						SCALE1(oy + (j * PILL_SIZE) + 4)
 					});
 					SDL_FreeSurface(text);
+
+					// 更新描述
+					if (j == selected_row && item->desc) {
+						desc = item->desc;
+					}
 				}
 			}
+			// else if (type==MENU_FIXED) {
+			// 	// NOTE: no need to calculate max width
+			// 	int mw = screen->w - SCALE1(PADDING*2);
+			// 	// int lw,rw;
+			// 	// lw = rw = mw / 2;
+			// 	int ox,oy;
+			// 	ox = oy = SCALE1(PADDING);
+			// 	oy += SCALE1(PILL_SIZE);
+				
+			// 	int selected_row = selected - start;
+			// 	for (int i=start,j=0; i<end; i++,j++) {
+			// 		MenuItem* item = &items[i];
+			// 		SDL_Color text_color = COLOR_WHITE;
+
+			// 		if (j==selected_row) {
+			// 			// gray pill
+			// 			GFX_blitPill(ASSET_OPTION, screen, &(SDL_Rect){
+			// 				ox,
+			// 				oy+SCALE1(j*BUTTON_SIZE),
+			// 				mw,
+			// 				SCALE1(BUTTON_SIZE)
+			// 			});
+			// 		}
+					
+			// 		if (item->value>=0) {
+			// 			text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
+			// 			SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+			// 				ox + mw - text->w - SCALE1(OPTION_PADDING),
+			// 				oy+SCALE1((j*BUTTON_SIZE)+3)
+			// 			});
+			// 			SDL_FreeSurface(text);
+			// 		}
+					
+			// 		// TODO: blit a black pill on unselected rows (to cover longer item->values?) or truncate longer item->values?
+			// 		if (j==selected_row) {
+			// 			// white pill
+			// 			int w = 0;
+			// 			TTF_SizeUTF8(font.small, item->name, &w, NULL);
+			// 			w += SCALE1(OPTION_PADDING*2);
+			// 			GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
+			// 				ox,
+			// 				oy+SCALE1(j*BUTTON_SIZE),
+			// 				w,
+			// 				SCALE1(BUTTON_SIZE)
+			// 			});
+			// 			text_color = COLOR_BLACK;
+						
+			// 			if (item->desc) desc = item->desc;
+			// 		}
+			// 		text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+			// 		SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+			// 			ox+SCALE1(OPTION_PADDING),
+			// 			oy+SCALE1((j*BUTTON_SIZE)+1)
+			// 		});
+			// 		SDL_FreeSurface(text);
+			// 	}
+			// }
 			else if (type==MENU_VAR || type==MENU_INPUT) {
 				int mw = list->max_width;
 				if (!mw) {
@@ -4680,9 +4730,10 @@ static void Menu_loop(void) {
 	PWR_warn(1);
 	
 	if (!quit) {
-		if (restore_w!=DEVICE_WIDTH || restore_h!=DEVICE_HEIGHT) {
-			screen = GFX_resize(restore_w,restore_h,restore_p);
-		}
+		//：去掉恢复屏幕修改
+		// if (restore_w!=DEVICE_WIDTH || restore_h!=DEVICE_HEIGHT) {
+		// 	screen = GFX_resize(restore_w,restore_h,restore_p);
+		// }
 		GFX_setEffect(screen_effect);
 		GFX_clear(screen);
 		video_refresh_callback(renderer.src, renderer.true_w, renderer.true_h, renderer.src_p);
