@@ -4061,116 +4061,108 @@ static int Menu_options(MenuList* list) {
 					SDL_FreeSurface(text);
 				}
 			}
-			else if (type == MENU_FIXED) {
-				int mw = screen->w - SCALE1(PADDING * 2);
-				int ox, oy;
+			else if (type==MENU_FIXED) {
+				// NOTE: no need to calculate max width
+				int mw = screen->w - SCALE1(PADDING*2);
+				// int lw,rw;
+				// lw = rw = mw / 2;
+				int ox,oy;
 				ox = oy = SCALE1(PADDING);
 				oy += SCALE1(PILL_SIZE);
-
+				
 				int selected_row = selected - start;
-
-				for (int i = start, j = 0; i < end; i++, j++) {
+				for (int i=start,j=0; i<end; i++,j++) {
 					MenuItem* item = &items[i];
 					SDL_Color text_color = COLOR_WHITE;
 
-					if (j == selected_row) {
-						// 绘制选中项背景
-						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
-							SCALE1(PADDING),
-							SCALE1(oy + (j * PILL_SIZE)),
+					if (j==selected_row) {
+						// gray pill
+						GFX_blitPill(ASSET_OPTION, screen, &(SDL_Rect){
+							ox,
+							oy+SCALE1(j*BUTTON_SIZE),
 							mw,
-							SCALE1(PILL_SIZE)
+							SCALE1(BUTTON_SIZE)
+						});
+					}
+					
+					if (item->value>=0) {
+						text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
+						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+							ox + mw - text->w - SCALE1(OPTION_PADDING),
+							oy+SCALE1((j*BUTTON_SIZE)+3)
+						});
+						SDL_FreeSurface(text);
+					}
+					
+					// TODO: blit a black pill on unselected rows (to cover longer item->values?) or truncate longer item->values?
+					if (j==selected_row) {
+						// white pill
+						int w = 0;
+						TTF_SizeUTF8(font.small, item->name, &w, NULL);
+						w += SCALE1(OPTION_PADDING*2);
+						GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
+							ox,
+							oy+SCALE1(j*BUTTON_SIZE),
+							w,
+							SCALE1(BUTTON_SIZE)
 						});
 						text_color = COLOR_BLACK;
-					} else {
-						// 绘制未选中项的阴影
-						SDL_Surface* shadow_text = TTF_RenderUTF8_Blended(font.small, item->name, COLOR_BLACK);
-						SDL_BlitSurface(shadow_text, NULL, screen, &(SDL_Rect){
-							SCALE1(PADDING + BUTTON_PADDING + 2),
-							SCALE1(oy + (j * PILL_SIZE) + 5)
-						});
-						SDL_FreeSurface(shadow_text);
+						
+						if (item->desc) desc = item->desc;
 					}
-
-					// 绘制附加值（始终白色）
-					if (item->value >= 0) {
-						SDL_Surface* value_text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE);
-						SDL_BlitSurface(value_text, NULL, screen, &(SDL_Rect){
-							mw - value_text->w - SCALE1(PADDING + OPTION_PADDING),
-							SCALE1(oy + (j * PILL_SIZE) + 4)
-						});
-						SDL_FreeSurface(value_text);
-					}
-
-					// 绘制文本
-					SDL_Surface* text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+					text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
 					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						SCALE1(PADDING + BUTTON_PADDING),
-						SCALE1(oy + (j * PILL_SIZE) + 4)
+						ox+SCALE1(OPTION_PADDING),
+						oy+SCALE1((j*BUTTON_SIZE)+1)
 					});
 					SDL_FreeSurface(text);
-
-					// 更新描述
-					if (j == selected_row && item->desc) {
-						desc = item->desc;
-					}
 				}
 			}
-			// else if (type==MENU_FIXED) {
-			// 	// NOTE: no need to calculate max width
-			// 	int mw = screen->w - SCALE1(PADDING*2);
-			// 	// int lw,rw;
-			// 	// lw = rw = mw / 2;
-			// 	int ox,oy;
-			// 	ox = oy = SCALE1(PADDING);
-			// 	oy += SCALE1(PILL_SIZE);
-				
-			// 	int selected_row = selected - start;
-			// 	for (int i=start,j=0; i<end; i++,j++) {
+			// else if (type == MENU_FIXED) {
+			// 	// 每页显示的最大行数
+			// 	int visible_count = 5;
+			// 	// 计算起始位置，使菜单居中
+			// 	int oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (visible_count * PILL_SIZE)) / 2;
+			// 	// 当前页的起始行和结束行
+			// 	int page_start = selected / visible_count * visible_count;
+			// 	int page_end = page_start + visible_count;
+			// 	for (int i = page_start, j = 0; i < end && j < visible_count; i++, j++) {
 			// 		MenuItem* item = &items[i];
 			// 		SDL_Color text_color = COLOR_WHITE;
-
-			// 		if (j==selected_row) {
-			// 			// gray pill
-			// 			GFX_blitPill(ASSET_OPTION, screen, &(SDL_Rect){
-			// 				ox,
-			// 				oy+SCALE1(j*BUTTON_SIZE),
-			// 				mw,
-			// 				SCALE1(BUTTON_SIZE)
-			// 			});
-			// 		}
-					
-			// 		if (item->value>=0) {
-			// 			text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
-			// 			SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-			// 				ox + mw - text->w - SCALE1(OPTION_PADDING),
-			// 				oy+SCALE1((j*BUTTON_SIZE)+3)
-			// 			});
-			// 			SDL_FreeSurface(text);
-			// 		}
-					
-			// 		// TODO: blit a black pill on unselected rows (to cover longer item->values?) or truncate longer item->values?
-			// 		if (j==selected_row) {
-			// 			// white pill
-			// 			int w = 0;
-			// 			TTF_SizeUTF8(font.small, item->name, &w, NULL);
-			// 			w += SCALE1(OPTION_PADDING*2);
-			// 			GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-			// 				ox,
-			// 				oy+SCALE1(j*BUTTON_SIZE),
-			// 				w,
-			// 				SCALE1(BUTTON_SIZE)
+			// 		if (i == selected) {
+			// 			// 选中项背景
+			// 			GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
+			// 				SCALE1(PADDING),
+			// 				SCALE1(oy + PADDING + (j * PILL_SIZE)),
+			// 				screen->w - SCALE1(PADDING * 2),
+			// 				SCALE1(PILL_SIZE)
 			// 			});
 			// 			text_color = COLOR_BLACK;
-						
-			// 			if (item->desc) desc = item->desc;
+			// 		} else {
+			// 			// 非选中项背景阴影
+			// 			SDL_Surface* shadow_text = TTF_RenderUTF8_Blended(font.large, item->name, COLOR_BLACK);
+			// 			SDL_BlitSurface(shadow_text, NULL, screen, &(SDL_Rect){
+			// 				SCALE1(PADDING + BUTTON_PADDING + 2),
+			// 				SCALE1(oy + PADDING + (j * PILL_SIZE) + 5)
+			// 			});
+			// 			SDL_FreeSurface(shadow_text);
 			// 		}
-			// 		text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+			// 		// 绘制菜单项名称
+			// 		SDL_Surface* text = TTF_RenderUTF8_Blended(font.large, item->name, text_color);
 			// 		SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-			// 			ox+SCALE1(OPTION_PADDING),
-			// 			oy+SCALE1((j*BUTTON_SIZE)+1)
+			// 			SCALE1(PADDING + BUTTON_PADDING),
+			// 			SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
 			// 		});
 			// 		SDL_FreeSurface(text);
+			// 		// 绘制右侧值
+			// 		if (item->value >= 0) {
+			// 			SDL_Surface* value_text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE);
+			// 			SDL_BlitSurface(value_text, NULL, screen, &(SDL_Rect){
+			// 				SCALE1(screen->w - PADDING - value_text->w - BUTTON_PADDING),
+			// 				SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
+			// 			});
+			// 			SDL_FreeSurface(value_text);
+			// 		}
 			// 	}
 			// }
 			else if (type==MENU_VAR || type==MENU_INPUT) {
