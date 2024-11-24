@@ -4095,7 +4095,7 @@ static int Menu_options(MenuList* list) {
 						});
 						SDL_FreeSurface(text);
 					}
-					
+					//
 					// TODO: blit a black pill on unselected rows (to cover longer item->values?) or truncate longer item->values?
 					if (j==selected_row) {
 						// white pill
