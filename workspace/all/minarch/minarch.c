@@ -1139,10 +1139,7 @@ static void Config_syncFrontend(char* key, int value) {
 	}
 	else if (exactMatch(key,config.frontend.options[FE_OPT_SHARPNESS].key)) {
 		screen_sharpness = value;
-		
-		if (screen_scaling==SCALE_NATIVE) GFX_setSharpness(SHARPNESS_SHARP);
-		else GFX_setSharpness(screen_sharpness);
-
+		GFX_setSharpness(value);
 		renderer.dst_p = 0;
 		i = FE_OPT_SHARPNESS;
 	}
@@ -2225,24 +2222,6 @@ static bool environment_callback(unsigned cmd, void *data) { // copied from pico
 
 ///////////////////////////////
 
-static void hdmimon(void) {
-	// handle HDMI change
-	static int had_hdmi = -1;
-	int has_hdmi = GetHDMI();
-	if (had_hdmi==-1) had_hdmi = has_hdmi;
-	if (has_hdmi!=had_hdmi) {
-		had_hdmi = has_hdmi;
-
-		LOG_info("restarting after HDMI change...\n");
-		Menu_beforeSleep();
-		sleep(4);
-		show_menu = 0;
-		quit = 1;
-	}
-}
-
-///////////////////////////////
-
 // TODO: this is a dumb API
 SDL_Surface* digits;
 #define DIGIT_WIDTH 9
@@ -3237,8 +3216,6 @@ static int Menu_message(char* message, char** pairs) {
 			dirty = 0;
 		}
 		else GFX_sync();
-		
-		hdmimon();
 	}
 	GFX_setMode(MODE_MENU);
 	return MENU_CALLBACK_NOP; // TODO: this should probably be an arg
@@ -3407,7 +3384,6 @@ int OptionControls_bind(MenuList* list, int i) {
 			}
 		}
 		GFX_sync();
-		hdmimon();
 	}
 	return MENU_CALLBACK_NEXT_ITEM;
 }
@@ -3520,7 +3496,6 @@ static int OptionShortcuts_bind(MenuList* list, int i) {
 			}
 		}
 		GFX_sync();
-		hdmimon();
 	}
 	return MENU_CALLBACK_NEXT_ITEM;
 }
@@ -3642,7 +3617,6 @@ static void OptionSaveChanges_updateDesc(void) {
 }
 
 #define OPTION_PADDING 8
-<<<<<<< HEAD
 //：修改
 static char* getAlias(char* path, char* alias) {
 	// LOG_info("alias path: %s\n", path);
@@ -3654,387 +3628,6 @@ static char* getAlias(char* path, char* alias) {
 		tmp += 1;
 		strcpy(tmp, "map.txt");
 		// LOG_info("map_path: %s\n", map_path);
-=======
-
-static int Menu_options(MenuList* list) {
-	MenuItem* items = list->items;
-	int type = list->type;
-
-	int dirty = 1;
-	int show_options = 1;
-	int show_settings = 0;
-	int await_input = 0;
-	
-	// dependent on option list offset top and bottom, eg. the gray triangles
-	int max_visible_options = (screen->h - ((SCALE1(PADDING + PILL_SIZE) * 2) + SCALE1(BUTTON_SIZE))) / SCALE1(BUTTON_SIZE); // 7 for 480, 10 for 720
-	
-	int count;
-	for (count=0; items[count].name; count++);
-	int selected = 0;
-	int start = 0;
-	int end = MIN(count,max_visible_options);
-	int visible_rows = end;
-	
-	OptionSaveChanges_updateDesc();
-	
-	int defer_menu = false;
-	while (show_options) {
-		if (await_input) {
-			defer_menu = true;
-			list->on_confirm(list, selected);
-			
-			selected += 1;
-			if (selected>=count) {
-				selected = 0;
-				start = 0;
-				end = visible_rows;
-			}
-			else if (selected>=end) {
-				start += 1;
-				end += 1;
-			}
-			dirty = 1;
-			await_input = false;
-		}
-		
-		GFX_startFrame();
-		PAD_poll();
-		
-		if (PAD_justRepeated(BTN_UP)) {
-			selected -= 1;
-			if (selected<0) {
-				selected = count - 1;
-				start = MAX(0,count - max_visible_options);
-				end = count;
-			}
-			else if (selected<start) {
-				start -= 1;
-				end -= 1;
-			}
-			dirty = 1;
-		}
-		else if (PAD_justRepeated(BTN_DOWN)) {
-			selected += 1;
-			if (selected>=count) {
-				selected = 0;
-				start = 0;
-				end = visible_rows;
-			}
-			else if (selected>=end) {
-				start += 1;
-				end += 1;
-			}
-			dirty = 1;
-		}
-		else {
-			MenuItem* item = &items[selected];
-			if (item->values && item->values!=button_labels) { // not an input binding
-				if (PAD_justRepeated(BTN_LEFT)) {
-					if (item->value>0) item->value -= 1;
-					else {
-						int j;
-						for (j=0; item->values[j]; j++);
-						item->value = j - 1;
-					}
-				
-					if (item->on_change) item->on_change(list, selected);
-					else if (list->on_change) list->on_change(list, selected);
-				
-					dirty = 1;
-				}
-				else if (PAD_justRepeated(BTN_RIGHT)) {
-					if (item->values[item->value+1]) item->value += 1;
-					else item->value = 0;
-				
-					if (item->on_change) item->on_change(list, selected);
-					else if (list->on_change) list->on_change(list, selected);
-				
-					dirty = 1;
-				}
-			}
-		}
-		
-		// uint32_t now = SDL_GetTicks();
-		if (PAD_justPressed(BTN_B)) { // || PAD_tappedMenu(now)
-			show_options = 0;
-		}
-		else if (PAD_justPressed(BTN_A)) {
-			MenuItem* item = &items[selected];
-			int result = MENU_CALLBACK_NOP;
-			if (item->on_confirm) result = item->on_confirm(list, selected); // item-specific action, eg. Save for all games
-			else if (item->submenu) result = Menu_options(item->submenu); // drill down, eg. main options menu
-			// TODO: is there a way to defer on_confirm for MENU_INPUT so we can clear the currently set value to indicate it is awaiting input? 
-			// eg. set a flag to call on_confirm at the beginning of the next frame?
-			else if (list->on_confirm) {
-				if (item->values==button_labels) await_input = 1; // button binding
-				else result = list->on_confirm(list, selected); // list-specific action, eg. show item detail view or input binding
-			}
-			if (result==MENU_CALLBACK_EXIT) show_options = 0;
-			else {
-				if (result==MENU_CALLBACK_NEXT_ITEM) {
-					// copied from PAD_justRepeated(BTN_DOWN) above
-					selected += 1;
-					if (selected>=count) {
-						selected = 0;
-						start = 0;
-						end = visible_rows;
-					}
-					else if (selected>=end) {
-						start += 1;
-						end += 1;
-					}
-				}
-				dirty = 1;
-			}
-		}
-		else if (type==MENU_INPUT) {
-			if (PAD_justPressed(BTN_X)) {
-				MenuItem* item = &items[selected];
-				item->value = 0;
-				
-				if (item->on_change) item->on_change(list, selected);
-				else if (list->on_change) list->on_change(list, selected);
-				
-				// copied from PAD_justRepeated(BTN_DOWN) above
-				selected += 1;
-				if (selected>=count) {
-					selected = 0;
-					start = 0;
-					end = visible_rows;
-				}
-				else if (selected>=end) {
-					start += 1;
-					end += 1;
-				}
-				dirty = 1;
-			}
-		}
-		
-		if (!defer_menu) PWR_update(&dirty, &show_settings, Menu_beforeSleep, Menu_afterSleep);
-		
-		if (defer_menu && PAD_justReleased(BTN_MENU)) defer_menu = false;
-		
-		if (dirty) {
-			GFX_clear(screen);
-			GFX_blitHardwareGroup(screen, show_settings);
-			
-			char* desc = NULL;
-			SDL_Surface* text;
-
-			if (type==MENU_LIST) {
-				int mw = list->max_width;
-				if (!mw) {
-					// get the width of the widest item
-					for (int i=0; i<count; i++) {
-						MenuItem* item = &items[i];
-						int w = 0;
-						TTF_SizeUTF8(font.small, item->name, &w, NULL);
-						w += SCALE1(OPTION_PADDING*2);
-						if (w>mw) mw = w;
-					}
-					// cache the result
-					list->max_width = mw = MIN(mw, screen->w - SCALE1(PADDING *2));
-				}
-				
-				int ox = (screen->w - mw) / 2;
-				int oy = SCALE1(PADDING + PILL_SIZE);
-				int selected_row = selected - start;
-				for (int i=start,j=0; i<end; i++,j++) {
-					MenuItem* item = &items[i];
-					SDL_Color text_color = COLOR_WHITE;
-
-					// int ox = (screen->w - w) / 2; // if we're centering these (but I don't think we should after seeing it)
-					if (j==selected_row) {
-						// move out of conditional if centering
-						int w = 0;
-						TTF_SizeUTF8(font.small, item->name, &w, NULL);
-						w += SCALE1(OPTION_PADDING*2);
-						
-						GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
-							w,
-							SCALE1(BUTTON_SIZE)
-						});
-						text_color = COLOR_BLACK;
-						
-						if (item->desc) desc = item->desc;
-					}
-					text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
-					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						ox+SCALE1(OPTION_PADDING),
-						oy+SCALE1((j*BUTTON_SIZE)+1)
-					});
-					SDL_FreeSurface(text);
-				}
-			}
-			else if (type==MENU_FIXED) {
-				// NOTE: no need to calculate max width
-				int mw = screen->w - SCALE1(PADDING*2);
-				// int lw,rw;
-				// lw = rw = mw / 2;
-				int ox,oy;
-				ox = oy = SCALE1(PADDING);
-				oy += SCALE1(PILL_SIZE);
-				
-				int selected_row = selected - start;
-				for (int i=start,j=0; i<end; i++,j++) {
-					MenuItem* item = &items[i];
-					SDL_Color text_color = COLOR_WHITE;
-
-					if (j==selected_row) {
-						// gray pill
-						GFX_blitPill(ASSET_OPTION, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
-							mw,
-							SCALE1(BUTTON_SIZE)
-						});
-					}
-					
-					if (item->value>=0) {
-						text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
-						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-							ox + mw - text->w - SCALE1(OPTION_PADDING),
-							oy+SCALE1((j*BUTTON_SIZE)+3)
-						});
-						SDL_FreeSurface(text);
-					}
-					
-					// TODO: blit a black pill on unselected rows (to cover longer item->values?) or truncate longer item->values?
-					if (j==selected_row) {
-						// white pill
-						int w = 0;
-						TTF_SizeUTF8(font.small, item->name, &w, NULL);
-						w += SCALE1(OPTION_PADDING*2);
-						GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
-							w,
-							SCALE1(BUTTON_SIZE)
-						});
-						text_color = COLOR_BLACK;
-						
-						if (item->desc) desc = item->desc;
-					}
-					text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
-					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						ox+SCALE1(OPTION_PADDING),
-						oy+SCALE1((j*BUTTON_SIZE)+1)
-					});
-					SDL_FreeSurface(text);
-				}
-			}
-			else if (type==MENU_VAR || type==MENU_INPUT) {
-				int mw = list->max_width;
-				if (!mw) {
-					// get the width of the widest row
-					int mrw = 0;
-					for (int i=0; i<count; i++) {
-						MenuItem* item = &items[i];
-						int w = 0;
-						int lw = 0;
-						int rw = 0;
-						TTF_SizeUTF8(font.small, item->name, &lw, NULL);
-						
-						// every value list in an input table is the same
-						// so only calculate rw for the first item...
-						if (!mrw || type!=MENU_INPUT) {
-							for (int j=0; item->values[j]; j++) {
-								TTF_SizeUTF8(font.tiny, item->values[j], &rw, NULL);
-								if (lw+rw>w) w = lw+rw;
-								if (rw>mrw) mrw = rw;
-							}
-						}
-						else {
-							w = lw + mrw;
-						}
-						w += SCALE1(OPTION_PADDING*4);
-						if (w>mw) mw = w;
-					}
-					fflush(stdout);
-					// cache the result
-					list->max_width = mw = MIN(mw, screen->w - SCALE1(PADDING *2));
-				}
-				
-				int ox = (screen->w - mw) / 2;
-				int oy = SCALE1(PADDING + PILL_SIZE);
-				int selected_row = selected - start;
-				for (int i=start,j=0; i<end; i++,j++) {
-					MenuItem* item = &items[i];
-					SDL_Color text_color = COLOR_WHITE;
-
-					if (j==selected_row) {
-						// gray pill
-						GFX_blitPill(ASSET_OPTION, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
-							mw,
-							SCALE1(BUTTON_SIZE)
-						});
-						
-						// white pill
-						int w = 0;
-						TTF_SizeUTF8(font.small, item->name, &w, NULL);
-						w += SCALE1(OPTION_PADDING*2);
-						GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
-							w,
-							SCALE1(BUTTON_SIZE)
-						});
-						text_color = COLOR_BLACK;
-						
-						if (item->desc) desc = item->desc;
-					}
-					text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
-					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						ox+SCALE1(OPTION_PADDING),
-						oy+SCALE1((j*BUTTON_SIZE)+1)
-					});
-					SDL_FreeSurface(text);
-					
-					if (await_input && j==selected_row) {
-						// buh
-					}
-					else if (item->value>=0) {
-						text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
-						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-							ox + mw - text->w - SCALE1(OPTION_PADDING),
-							oy+SCALE1((j*BUTTON_SIZE)+3)
-						});
-						SDL_FreeSurface(text);
-					}
-				}
-			}
-			
-			if (count>max_visible_options) {
-				#define SCROLL_WIDTH 24
-				#define SCROLL_HEIGHT 4
-				int ox = (screen->w - SCALE1(SCROLL_WIDTH))/2;
-				int oy = SCALE1((PILL_SIZE - SCROLL_HEIGHT) / 2);
-				if (start>0) GFX_blitAsset(ASSET_SCROLL_UP,   NULL, screen, &(SDL_Rect){ox, SCALE1(PADDING) + oy});
-				if (end<count) GFX_blitAsset(ASSET_SCROLL_DOWN, NULL, screen, &(SDL_Rect){ox, screen->h - SCALE1(PADDING + PILL_SIZE + BUTTON_SIZE) + oy});
-			}
-			
-			if (!desc && list->desc) desc = list->desc;
-			
-			if (desc) {
-				int w,h;
-				GFX_sizeText(font.tiny, desc, SCALE1(12), &w,&h);
-				GFX_blitText(font.tiny, desc, SCALE1(12), COLOR_WHITE, screen, &(SDL_Rect){
-					(screen->w - w) / 2,
-					screen->h - SCALE1(PADDING) - h,
-					w,h
-				});
-			}
-			
-			GFX_flip(screen);
-			dirty = 0;
-		}
-		else GFX_sync();
-		hdmimon();
->>>>>>> upstream/main
 	}
 	char* file_name = strrchr(path,'/');
 	if (file_name) file_name += 1;
@@ -5074,7 +4667,6 @@ static void Menu_loop(void) {
 			dirty = 0;
 		}
 		else GFX_sync();
-		hdmimon();
 	}
 	
 	SDL_FreeSurface(preview);
@@ -5338,8 +4930,6 @@ int main(int argc , char* argv[]) {
 			}
 		}
 		// LOG_info("frame duration: %ims\n", SDL_GetTicks()-frame_start);
-		
-		hdmimon();
 	}
 	
 	Menu_quit();
