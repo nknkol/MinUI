@@ -4026,8 +4026,10 @@ static int Menu_options(MenuList* list) {
 			SDL_FreeSurface(title_text);
 
 			if (type == MENU_LIST) {
-				// 菜单项起始位置，参照 b.c 的间距和高度
-				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
+				// 菜单项起始位置，参照的间距和高度
+				// oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
+				//：test
+				oy = 70;
 				// 绘制菜单项
 				for (int i = start, j = 0; i < end; i++, j++) {
 					int ow;
@@ -4065,12 +4067,14 @@ static int Menu_options(MenuList* list) {
 			}
 			else if (type==MENU_FIXED) {
 				// NOTE: no need to calculate max width
+				// ：屏幕宽度 1024 减去 SCALE1(5*2 * FIXED_SCALE) FIXED_SCALE=3
+				//int mw = screen->w - SCALE1(PADDING*2);
 				int mw = screen->w - SCALE1(PADDING*2);
 				// int lw,rw;
 				// lw = rw = mw / 2;
 				int ox,oy;
-				ox = oy = SCALE1(PADDING);
-				oy += SCALE1(PILL_SIZE);
+				ox = oy = SCALE1(PADDING); //：5*3
+				oy += SCALE1(PILL_SIZE); //：PILL_SIZE=30
 				
 				int selected_row = selected - start;
 				for (int i=start,j=0; i<end; i++,j++) {
@@ -4202,15 +4206,15 @@ static int Menu_options(MenuList* list) {
 					}
 				}
 			}
-			
-			if (count>max_visible_options) {
-				#define SCROLL_WIDTH 24
-				#define SCROLL_HEIGHT 4
-				int ox = (screen->w - SCALE1(SCROLL_WIDTH))/2;
-				int oy = SCALE1((PILL_SIZE - SCROLL_HEIGHT) / 2);
-				if (start>0) GFX_blitAsset(ASSET_SCROLL_UP,   NULL, screen, &(SDL_Rect){ox, SCALE1(PADDING) + oy});
-				if (end<count) GFX_blitAsset(ASSET_SCROLL_DOWN, NULL, screen, &(SDL_Rect){ox, screen->h - SCALE1(PADDING + PILL_SIZE + BUTTON_SIZE) + oy});
-			}
+			// ：删除
+			// if (count>max_visible_options) {
+			// 	#define SCROLL_WIDTH 24
+			// 	#define SCROLL_HEIGHT 4
+			// 	int ox = (screen->w - SCALE1(SCROLL_WIDTH))/2;
+			// 	int oy = SCALE1((PILL_SIZE - SCROLL_HEIGHT) / 2);
+			// 	if (start>0) GFX_blitAsset(ASSET_SCROLL_UP,   NULL, screen, &(SDL_Rect){ox, SCALE1(PADDING) + oy});
+			// 	if (end<count) GFX_blitAsset(ASSET_SCROLL_DOWN, NULL, screen, &(SDL_Rect){ox, screen->h - SCALE1(PADDING + PILL_SIZE + BUTTON_SIZE) + oy});
+			// }
 			
 			if (!desc && list->desc) desc = list->desc;
 			//int ow = GFX_blitHardwareGroup(screen, show_setting);
