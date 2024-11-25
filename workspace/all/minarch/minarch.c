@@ -4027,10 +4027,8 @@ static int Menu_options(MenuList* list) {
 			SDL_FreeSurface(title_text);
 
 			if (type == MENU_LIST) {
-				// 菜单项起始位置，参照的间距和高度 ((768/3) - 10) - (5 * 30 ) / 2
+
 				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
-				//：test
-				//oy = 171;
 				// 绘制菜单项
 				for (int i = start, j = 0; i < end; i++, j++) {
 					int ow;
@@ -4043,13 +4041,13 @@ static int Menu_options(MenuList* list) {
 						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
 							SCALE1(PADDING),
 							SCALE1(oy + PADDING + (j * PILL_SIZE)),
-							//screen->w - SCALE1(PADDING * 2),
+							//screen->w - SCALE1(PADDING * 2), //全宽
 							ow,
 							SCALE1(PILL_SIZE)
 						});
 						text_color = COLOR_BLACK;
 					} else {
-						// 非选中项背景阴影
+						// 字体阴影
 						SDL_Surface* shadow_text = TTF_RenderUTF8_Blended(font.large, item->name, COLOR_BLACK);
 						SDL_BlitSurface(shadow_text, NULL, screen, &(SDL_Rect){
 							SCALE1(PADDING + BUTTON_PADDING + 2),
@@ -4068,12 +4066,8 @@ static int Menu_options(MenuList* list) {
 			}
 			else if (type==MENU_FIXED) {
 				// NOTE: no need to calculate max width
-				//int mw = screen->w// - SCALE1(PADDING*2);BUTTON_PADDING*2
 				int mw = screen->w - SCALE1(BUTTON_PADDING*2);
-				// int lw,rw;
-				// lw = rw = mw / 2;
 				int ox,oy;
-				//ox = oy = SCALE1(PADDING);
 				ox = SCALE1(PADDING);
 				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 				
@@ -4086,54 +4080,46 @@ static int Menu_options(MenuList* list) {
 						// gray pill
 						GFX_blitPill(ASSET_DARK_GRAY_PILL, screen, &(SDL_Rect){
 							ox,
-							//oy+SCALE1(j*BUTTON_SIZE),
-							//oy+SCALE1(j*PILL_SIZE),
 							SCALE1(oy + PADDING + (j * PILL_SIZE)),
-							//mw,
-							screen->w,
-							//SCALE1(BUTTON_SIZE)
+							screen->w - SCALE1(PADDING * 2),
 							SCALE1(PILL_SIZE)
 						});
 					}
-					
 					if (item->value>=0) {
 						text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
 						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-							//ox + mw - text->w - SCALE1(OPTION_PADDING),
 							ox + mw - text->w, // - SCALE1(OPTION_PADDING),
-							//oy+SCALE1((j*BUTTON_SIZE)+3)
-							//oy+SCALE1((j*PILL_SIZE)+3)
 							SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
 						});
 						SDL_FreeSurface(text);
 					}
-					
 					// TODO: blit a black pill on unselected rows (to cover longer item->values?) or truncate longer item->values?
 					if (j==selected_row) {
 						// white pill
 						int w = 0;
-						//TTF_SizeUTF8(font.small, item->name, &w, NULL);
 						TTF_SizeUTF8(font.large, item->name, &w, NULL);
 						w += SCALE1(OPTION_PADDING*2);
 						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
-							//ox,
-							//oy+SCALE1(j*BUTTON_SIZE),
 							SCALE1(PADDING),
 							SCALE1(oy + PADDING + (j * PILL_SIZE)),
 							w,
-							//SCALE1(BUTTON_SIZE)
 							SCALE1(PILL_SIZE)
 						});
 						text_color = COLOR_BLACK;
 						
 						if (item->desc) desc = item->desc;
+					}else {
+						// 字体阴影
+						SDL_Surface* shadow_text = TTF_RenderUTF8_Blended(font.large, item->name, COLOR_BLACK);
+						SDL_BlitSurface(shadow_text, NULL, screen, &(SDL_Rect){
+							SCALE1(PADDING + BUTTON_PADDING + 2),
+							SCALE1(oy + PADDING + (j * PILL_SIZE) + 5)
+						});
+						SDL_FreeSurface(shadow_text);
 					}
 					//text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
 					text = TTF_RenderUTF8_Blended(font.large, item->name, text_color);
 					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						// ox+SCALE1(OPTION_PADDING),
-						// //oy+SCALE1((j*BUTTON_SIZE)+1)
-						// oy+SCALE1((j * PILL_SIZE) + 1)
 						SCALE1(PADDING + BUTTON_PADDING),
 						SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
 					});
@@ -4271,7 +4257,6 @@ static int Menu_options(MenuList* list) {
 				} else {
 					text_offset = 0;  // 文本宽度小于最大宽度时不滚动
 				}
-				
 				// 限制文本高度为一行，并调整水平偏移
 				GFX_blitText(font.tiny, desc, SCALE1(12), COLOR_WHITE, screen, &(SDL_Rect){
 					(screen->w - max_width) / 2,  // 水平居中
