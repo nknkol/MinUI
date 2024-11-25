@@ -4026,10 +4026,10 @@ static int Menu_options(MenuList* list) {
 			SDL_FreeSurface(title_text);
 
 			if (type == MENU_LIST) {
-				// 菜单项起始位置，参照的间距和高度
-				// oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
+				// 菜单项起始位置，参照的间距和高度 ((768/3) - 10) - (5 * 30 ) / 2
+				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 				//：test
-				oy = 70;
+				oy = 171;
 				// 绘制菜单项
 				for (int i = start, j = 0; i < end; i++, j++) {
 					int ow;
@@ -4067,14 +4067,12 @@ static int Menu_options(MenuList* list) {
 			}
 			else if (type==MENU_FIXED) {
 				// NOTE: no need to calculate max width
-				// ：屏幕宽度 1024 减去 SCALE1(5*2 * FIXED_SCALE) FIXED_SCALE=3
-				//int mw = screen->w - SCALE1(PADDING*2);
 				int mw = screen->w - SCALE1(PADDING*2);
 				// int lw,rw;
 				// lw = rw = mw / 2;
 				int ox,oy;
-				ox = oy = SCALE1(PADDING); //：5*3
-				oy += SCALE1(PILL_SIZE); //：PILL_SIZE=30
+				ox = oy = SCALE1(PADDING);
+				oy += SCALE1(PILL_SIZE);
 				
 				int selected_row = selected - start;
 				for (int i=start,j=0; i<end; i++,j++) {
@@ -4099,7 +4097,7 @@ static int Menu_options(MenuList* list) {
 						});
 						SDL_FreeSurface(text);
 					}
-					//
+					
 					// TODO: blit a black pill on unselected rows (to cover longer item->values?) or truncate longer item->values?
 					if (j==selected_row) {
 						// white pill
