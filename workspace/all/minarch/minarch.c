@@ -3812,7 +3812,8 @@ static int Menu_options(MenuList* list) {
 		screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
 	}
 	// dependent on option list offset top and bottom, eg. the gray triangles
-	int max_visible_options = (screen->h - ((SCALE1(PADDING + PILL_SIZE) * 2) + SCALE1(BUTTON_SIZE))) / SCALE1(BUTTON_SIZE); // 7 for 480, 10 for 720
+	//int max_visible_options = (screen->h - ((SCALE1(PADDING + PILL_SIZE) * 2) + SCALE1(BUTTON_SIZE))) / SCALE1(BUTTON_SIZE); // 7 for 480, 10 for 720
+	int max_visible_options = 5; // 7 for 480, 10 for 720
 	
 	int count;
 	for (count=0; items[count].name; count++);
@@ -4029,7 +4030,7 @@ static int Menu_options(MenuList* list) {
 				// 菜单项起始位置，参照的间距和高度 ((768/3) - 10) - (5 * 30 ) / 2
 				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 				//：test
-				oy = 171;
+				//oy = 171;
 				// 绘制菜单项
 				for (int i = start, j = 0; i < end; i++, j++) {
 					int ow;
@@ -4067,12 +4068,14 @@ static int Menu_options(MenuList* list) {
 			}
 			else if (type==MENU_FIXED) {
 				// NOTE: no need to calculate max width
-				int mw = screen->w - SCALE1(PADDING*2);
+				//int mw = screen->w// - SCALE1(PADDING*2);BUTTON_PADDING*2
+				int mw = screen->w - SCALE1(BUTTON_PADDING*2);
 				// int lw,rw;
 				// lw = rw = mw / 2;
 				int ox,oy;
-				ox = oy = SCALE1(PADDING);
-				oy += SCALE1(PILL_SIZE);
+				//ox = oy = SCALE1(PADDING);
+				ox = SCALE1(PADDING);
+				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 				
 				int selected_row = selected - start;
 				for (int i=start,j=0; i<end; i++,j++) {
@@ -4081,19 +4084,26 @@ static int Menu_options(MenuList* list) {
 
 					if (j==selected_row) {
 						// gray pill
-						GFX_blitPill(ASSET_OPTION, screen, &(SDL_Rect){
+						GFX_blitPill(ASSET_DARK_GRAY_PILL, screen, &(SDL_Rect){
 							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
-							mw,
-							SCALE1(BUTTON_SIZE)
+							//oy+SCALE1(j*BUTTON_SIZE),
+							//oy+SCALE1(j*PILL_SIZE),
+							SCALE1(oy + PADDING + (j * PILL_SIZE)),
+							//mw,
+							screen->w,
+							//SCALE1(BUTTON_SIZE)
+							SCALE1(PILL_SIZE)
 						});
 					}
 					
 					if (item->value>=0) {
 						text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
 						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-							ox + mw - text->w - SCALE1(OPTION_PADDING),
-							oy+SCALE1((j*BUTTON_SIZE)+3)
+							//ox + mw - text->w - SCALE1(OPTION_PADDING),
+							ox + mw - text->w, // - SCALE1(OPTION_PADDING),
+							//oy+SCALE1((j*BUTTON_SIZE)+3)
+							//oy+SCALE1((j*PILL_SIZE)+3)
+							SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
 						});
 						SDL_FreeSurface(text);
 					}
@@ -4102,22 +4112,30 @@ static int Menu_options(MenuList* list) {
 					if (j==selected_row) {
 						// white pill
 						int w = 0;
-						TTF_SizeUTF8(font.small, item->name, &w, NULL);
+						//TTF_SizeUTF8(font.small, item->name, &w, NULL);
+						TTF_SizeUTF8(font.large, item->name, &w, NULL);
 						w += SCALE1(OPTION_PADDING*2);
-						GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
+						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
+							//ox,
+							//oy+SCALE1(j*BUTTON_SIZE),
+							SCALE1(PADDING),
+							SCALE1(oy + PADDING + (j * PILL_SIZE)),
 							w,
-							SCALE1(BUTTON_SIZE)
+							//SCALE1(BUTTON_SIZE)
+							SCALE1(PILL_SIZE)
 						});
 						text_color = COLOR_BLACK;
 						
 						if (item->desc) desc = item->desc;
 					}
-					text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+					//text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+					text = TTF_RenderUTF8_Blended(font.large, item->name, text_color);
 					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						ox+SCALE1(OPTION_PADDING),
-						oy+SCALE1((j*BUTTON_SIZE)+1)
+						// ox+SCALE1(OPTION_PADDING),
+						// //oy+SCALE1((j*BUTTON_SIZE)+1)
+						// oy+SCALE1((j * PILL_SIZE) + 1)
+						SCALE1(PADDING + BUTTON_PADDING),
+						SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
 					});
 					SDL_FreeSurface(text);
 				}
