@@ -3793,7 +3793,57 @@ static void Menu_scale(SDL_Surface* src, SDL_Surface* dst) {
 	
 	// LOG_info("successful\n");
 }
+// 定义返回结构
+typedef struct {
+    char* text;       // 处理后的文字
+    bool is_truncated; // 是否超宽并被截断
+} TruncatedText;
 
+// 截断逻辑函数
+TruncatedText truncate_with_ellipsis(TTF_Font* font, const char* text, int max_width) {
+    TruncatedText result = {NULL, false};
+
+    if (!text || strlen(text) == 0) {
+        result.text = strdup(""); // 空字符串
+        return result;
+    }
+
+    int text_width = 0;
+    TTF_SizeUTF8(font, text, &text_width, NULL);
+
+    if (text_width <= max_width) {
+        // 未超宽
+        result.text = strdup(text);
+        result.is_truncated = false;
+        return result;
+    }
+
+    // 超宽处理：逐字符截断并添加省略号
+    const char* ellipsis = "...";
+    int ellipsis_width = 0;
+    TTF_SizeUTF8(font, ellipsis, &ellipsis_width, NULL);
+
+    size_t len = strlen(text);
+    char* truncated = strdup(text);
+
+    while (len > 0) {
+        truncated[len - 1] = '\0'; // 减少一个字符
+        TTF_SizeUTF8(font, truncated, &text_width, NULL);
+        if (text_width + ellipsis_width <= max_width) {
+            break;
+        }
+        len--;
+    }
+
+    // 拼接省略号
+    size_t truncated_len = strlen(truncated) + strlen(ellipsis) + 1;
+    result.text = (char*)malloc(truncated_len);
+    snprintf(result.text, truncated_len, "%s%s", truncated, ellipsis);
+
+    free(truncated);
+    result.is_truncated = true; // 标记为超宽
+    return result;
+}
 static int Menu_options(MenuList* list) {
 	MenuItem* items = list->items;
 	int type = list->type;
@@ -3983,18 +4033,13 @@ static int Menu_options(MenuList* list) {
 		if (!defer_menu) PWR_update(&dirty, &show_settings, Menu_beforeSleep, Menu_afterSleep);
 		
 		if (defer_menu && PAD_justReleased(BTN_MENU)) defer_menu = false;
-		//TODO：模拟器菜单UI统一
-		//PWR_update(&dirty, &show_setting, Menu_beforeSleep, Menu_afterSleep);
 		if (dirty) {
 			GFX_clear(screen);
-			//GFX_blitHardwareGroup(screen, show_settings);
-			///
 			SDL_BlitSurface(backing, NULL, screen, NULL);
 			SDL_BlitSurface(menu.overlay, NULL, screen, NULL);
-			///
+
 			char* desc = NULL;
 			SDL_Surface* text;
-			//int show_setting = 0; // 默认值，可根据上下文修改
 			int ow = GFX_blitHardwareGroup(screen, show_settings);
 			// path and string things
 			char rom_name[256]; // 用于存储当前游戏的显示名称
@@ -4025,7 +4070,7 @@ static int Menu_options(MenuList* list) {
 				SCALE1(PADDING + 4)
 			});
 			SDL_FreeSurface(title_text);
-
+			// 标题绘制end
 			if (type == MENU_LIST) {
 
 				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
@@ -4041,7 +4086,6 @@ static int Menu_options(MenuList* list) {
 						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
 							SCALE1(PADDING),
 							SCALE1(oy + PADDING + (j * PILL_SIZE)),
-							//screen->w - SCALE1(PADDING * 2), //全宽
 							ow,
 							SCALE1(PILL_SIZE)
 						});
@@ -4064,41 +4108,30 @@ static int Menu_options(MenuList* list) {
 					SDL_FreeSurface(text);
 				}
 			}
-			else if (type==MENU_FIXED) {
-				// NOTE: no need to calculate max width
-				int mw = screen->w - SCALE1(BUTTON_PADDING*2);
-				int ox,oy;
-				ox = SCALE1(PADDING);
-				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
-				
+			else if (type == MENU_FIXED) {
+				int mw = screen->w - SCALE1(BUTTON_PADDING * 2);
+				int ox = SCALE1(PADDING);
+				int oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 				int selected_row = selected - start;
-				for (int i=start,j=0; i<end; i++,j++) {
+				for (int i = start, j = 0; i < end; i++, j++) {
 					MenuItem* item = &items[i];
 					SDL_Color text_color = COLOR_WHITE;
-
-					if (j==selected_row) {
-						// gray pill
+					//文字宽度处理逻辑
+					int max_width = screen->w / 2; // 限制宽度为屏幕的一半
+					TruncatedText truncated_text = truncate_with_ellipsis(font.large, item->name, max_width);
+					// 选中ui渲染
+					if (j == selected_row) {
+						//灰色背景
 						GFX_blitPill(ASSET_DARK_GRAY_PILL, screen, &(SDL_Rect){
 							ox,
 							SCALE1(oy + PADDING + (j * PILL_SIZE)),
 							screen->w - SCALE1(PADDING * 2),
 							SCALE1(PILL_SIZE)
 						});
-					}
-					if (item->value>=0) {
-						text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
-						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-							ox + mw - text->w, // - SCALE1(OPTION_PADDING),
-							SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
-						});
-						SDL_FreeSurface(text);
-					}
-					// TODO: blit a black pill on unselected rows (to cover longer item->values?) or truncate longer item->values?
-					if (j==selected_row) {
-						// white pill
+						//白色背景
 						int w = 0;
-						TTF_SizeUTF8(font.large, item->name, &w, NULL);
-						w += SCALE1(OPTION_PADDING*2);
+						TTF_SizeUTF8(font.large, truncated_text.text, &w, NULL);
+						w += SCALE1(OPTION_PADDING * 2);
 						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
 							SCALE1(PADDING),
 							SCALE1(oy + PADDING + (j * PILL_SIZE)),
@@ -4106,19 +4139,34 @@ static int Menu_options(MenuList* list) {
 							SCALE1(PILL_SIZE)
 						});
 						text_color = COLOR_BLACK;
-						
 						if (item->desc) desc = item->desc;
 					}else {
-						// 字体阴影
-						SDL_Surface* shadow_text = TTF_RenderUTF8_Blended(font.large, item->name, COLOR_BLACK);
+						//未选中渲染字体阴影
+						SDL_Surface* shadow_text = TTF_RenderUTF8_Blended(font.large, truncated_text.text, COLOR_BLACK);
 						SDL_BlitSurface(shadow_text, NULL, screen, &(SDL_Rect){
 							SCALE1(PADDING + BUTTON_PADDING + 2),
 							SCALE1(oy + PADDING + (j * PILL_SIZE) + 5)
 						});
 						SDL_FreeSurface(shadow_text);
+						//未选中右侧选项阴影
+						SDL_Surface* values_shadow = TTF_RenderUTF8_Blended(font.medium, item->values[item->value], COLOR_BLACK);
+						SDL_BlitSurface(values_shadow, NULL, screen, &(SDL_Rect){
+							ox + mw - text->w,
+							SCALE1(oy + PADDING + (j * PILL_SIZE) + 5)
+						});
+						SDL_FreeSurface(values_shadow);
 					}
-					//text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
-					text = TTF_RenderUTF8_Blended(font.large, item->name, text_color);
+					//渲染右侧选项
+					if (item->value >= 0) {
+						text = TTF_RenderUTF8_Blended(font.medium, item->values[item->value], COLOR_WHITE);
+						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+							ox + mw - text->w,
+							SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
+						});
+						SDL_FreeSurface(text);
+					}
+					//渲染列表文字
+					text = TTF_RenderUTF8_Blended(font.large, truncated_text.text, text_color);
 					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
 						SCALE1(PADDING + BUTTON_PADDING),
 						SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
@@ -4137,7 +4185,6 @@ static int Menu_options(MenuList* list) {
 						int lw = 0;
 						int rw = 0;
 						TTF_SizeUTF8(font.small, item->name, &lw, NULL);
-						
 						// every value list in an input table is the same
 						// so only calculate rw for the first item...
 						if (!mrw || type!=MENU_INPUT) {
@@ -4208,63 +4255,7 @@ static int Menu_options(MenuList* list) {
 					}
 				}
 			}
-			// ：删除
-			// if (count>max_visible_options) {
-			// 	#define SCROLL_WIDTH 24
-			// 	#define SCROLL_HEIGHT 4
-			// 	int ox = (screen->w - SCALE1(SCROLL_WIDTH))/2;
-			// 	int oy = SCALE1((PILL_SIZE - SCROLL_HEIGHT) / 2);
-			// 	if (start>0) GFX_blitAsset(ASSET_SCROLL_UP,   NULL, screen, &(SDL_Rect){ox, SCALE1(PADDING) + oy});
-			// 	if (end<count) GFX_blitAsset(ASSET_SCROLL_DOWN, NULL, screen, &(SDL_Rect){ox, screen->h - SCALE1(PADDING + PILL_SIZE + BUTTON_SIZE) + oy});
-			// }
-			
-			if (!desc && list->desc) desc = list->desc;
-			//int ow = GFX_blitHardwareGroup(screen, show_setting);
-			static int text_offset = 0;         // 滚动偏移量
-			static int scroll_direction = 1;   // 滚动方向：1 表示右移，-1 表示左移
-			//int ow = GFX_blitHardwareGroup(screen, show_setting);
-			// if (desc) {
-			// 	int w, h;
-			// 	GFX_sizeText(font.tiny, desc, SCALE1(12), &w, &h);  // 计算文本尺寸
-			// 	int max_width = screen->w - 2 * SCALE1(PADDING);  // 文本可用最大宽度
-			// 	if (w > max_width) {  // 当文本宽度超出屏幕宽度时，启用滚动
-			// 		text_offset += scroll_direction * SCALE1(2);  // 根据滚动方向调整偏移量
-			// 		if (text_offset >= (w - max_width) || text_offset <= 0) {
-			// 			scroll_direction = -scroll_direction;  // 到达边界时改变方向
-			// 		}
-			// 	} else {
-			// 		text_offset = 0;  // 文本宽度小于最大宽度时不滚动
-			// 	}
-			// 	// 绘制文本，调整水平偏移
-			// 	GFX_blitText(font.tiny, desc, SCALE1(12), COLOR_WHITE, screen, &(SDL_Rect){
-			// 		(screen->w - max_width) / 2,  // 水平居中
-			// 		screen->h - SCALE1(PADDING *2) - ow,  // 垂直位置调整
-			// 		max_width, h  // 限定绘制区域的宽度
-			// 	});
-			// }
-			if (desc) {
-				int w, h;
-				GFX_sizeText(font.tiny, desc, SCALE1(12), &w, &h); // 计算文本尺寸
-				int max_width = screen->w - 2 * SCALE1(PADDING);  // 文本可用最大宽度
-				int line_height = ow; // 一行的高度限制
-				
-				// 检查是否需要滚动
-				if (w > max_width) {  // 当文本宽度超出屏幕宽度时，启用滚动
-					text_offset += scroll_direction * SCALE1(2);  // 根据滚动方向调整偏移量
-					if (text_offset >= (w - max_width) || text_offset <= 0) {
-						scroll_direction = -scroll_direction;  // 到达边界时改变方向
-					}
-				} else {
-					text_offset = 0;  // 文本宽度小于最大宽度时不滚动
-				}
-				// 限制文本高度为一行，并调整水平偏移
-				GFX_blitText(font.tiny, desc, SCALE1(12), COLOR_WHITE, screen, &(SDL_Rect){
-					(screen->w - max_width) / 2,  // 水平居中
-					screen->h - SCALE1(PADDING * 2) - line_height,  // 垂直位置调整
-					max_width, line_height / 2  // 限定绘制区域的宽度和高度
-				});
-			
-			}
+			//底部按钮
 			if (show_settings && !GetHDMI()) GFX_blitHardwareHints(screen, show_settings);
 			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
 			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
@@ -4272,14 +4263,8 @@ static int Menu_options(MenuList* list) {
 			GFX_flip(screen);
 			dirty = 0;
 		}
-		//底部按钮
-		
 		else GFX_sync();
 	}
-	
-	// GFX_clearAll();
-	// GFX_flip(screen);
-	
 	return 0;
 }
 
