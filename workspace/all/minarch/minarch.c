@@ -4172,6 +4172,10 @@ static int Menu_options(MenuList* list) {
 						SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
 					});
 					SDL_FreeSurface(text);
+					//选中文字且文字超过屏幕一半
+					if (j == selected_row && truncated_text.is_truncated == true) {
+						//选中文字滚动设计
+ 					}
 				}
 			}
 			else if (type==MENU_VAR || type==MENU_INPUT) {
