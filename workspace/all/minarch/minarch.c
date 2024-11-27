@@ -3793,55 +3793,72 @@ static void Menu_scale(SDL_Surface* src, SDL_Surface* dst) {
 	
 	// LOG_info("successful\n");
 }
-// 定义返回结构
 typedef struct {
-    char* text;       // 处理后的文字
-    bool is_truncated; // 是否超宽并被截断
+    char* text;          // 处理后的文字
+    bool is_truncated;   // 是否超宽并被截断
+    int original_length; // 原始字符长度
+    int truncated_length; // 超宽截断后的显示宽度
 } TruncatedText;
-
-// 截断逻辑函数
 TruncatedText truncate_with_ellipsis(TTF_Font* font, const char* text, int max_width) {
-    TruncatedText result = {NULL, false};
-
+    TruncatedText result = { 
+        .text = NULL, 
+        .is_truncated = false, 
+        .original_length = 0, 
+        .truncated_length = 0 
+    };
     if (!text || strlen(text) == 0) {
-        result.text = strdup(""); // 空字符串
+        result.text = strdup(""); // 空字符串处理
         return result;
     }
-
     int text_width = 0;
-    TTF_SizeUTF8(font, text, &text_width, NULL);
-
+    if (TTF_SizeUTF8(font, text, &text_width, NULL) != 0) {
+        return result; // 如果计算宽度失败，直接返回未修改的结构
+    }
+    // 保存原始宽度
+    result.original_length = text_width;
     if (text_width <= max_width) {
         // 未超宽
         result.text = strdup(text);
-        result.is_truncated = false;
         return result;
     }
-
-    // 超宽处理：逐字符截断并添加省略号
+    // 超宽处理
     const char* ellipsis = "...";
     int ellipsis_width = 0;
-    TTF_SizeUTF8(font, ellipsis, &ellipsis_width, NULL);
-
+    if (TTF_SizeUTF8(font, ellipsis, &ellipsis_width, NULL) != 0) {
+        return result;
+    }
+    // 如果最大宽度小于省略号的宽度
+    if (max_width < ellipsis_width) {
+        result.text = strdup(ellipsis);
+        result.is_truncated = true;
+        result.truncated_length = ellipsis_width;
+        return result;
+    }
     size_t len = strlen(text);
     char* truncated = strdup(text);
-
+    if (!truncated) {
+        return result; // 内存分配失败
+    }
     while (len > 0) {
         truncated[len - 1] = '\0'; // 减少一个字符
-        TTF_SizeUTF8(font, truncated, &text_width, NULL);
+        if (TTF_SizeUTF8(font, truncated, &text_width, NULL) != 0) {
+            free(truncated);
+            return result;
+        }
         if (text_width + ellipsis_width <= max_width) {
             break;
         }
         len--;
     }
-
     // 拼接省略号
     size_t truncated_len = strlen(truncated) + strlen(ellipsis) + 1;
     result.text = (char*)malloc(truncated_len);
-    snprintf(result.text, truncated_len, "%s%s", truncated, ellipsis);
-
+    if (result.text) {
+        snprintf(result.text, truncated_len, "%s%s", truncated, ellipsis);
+        result.is_truncated = true;
+        result.truncated_length = text_width + ellipsis_width;
+    }
     free(truncated);
-    result.is_truncated = true; // 标记为超宽
     return result;
 }
 static int Menu_options(MenuList* list) {
@@ -4165,17 +4182,20 @@ static int Menu_options(MenuList* list) {
 						});
 						SDL_FreeSurface(text);
 					}
-					//渲染列表文字
-					text = TTF_RenderUTF8_Blended(font.large, truncated_text.text, text_color);
-					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						SCALE1(PADDING + BUTTON_PADDING),
-						SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
-					});
-					SDL_FreeSurface(text);
 					//选中文字且文字超过屏幕一半
-					if (j == selected_row && truncated_text.is_truncated == true) {
-						//选中文字滚动设计
- 					}
+					if (j == selected_row && truncated_text.is_truncated) {
+						// 超宽需要滚动，启用菜单文字滚动状态
+						// is_truncated_scroll = true;
+					}else {
+						//关闭菜单文字滚动状态
+						is_truncated_scroll = false;
+						text = TTF_RenderUTF8_Blended(font.large, truncated_text.text, text_color);
+						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+							SCALE1(PADDING + BUTTON_PADDING),
+							SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
+						});
+						SDL_FreeSurface(text);
+					}
 				}
 			}
 			else if (type==MENU_VAR || type==MENU_INPUT) {
@@ -4208,14 +4228,12 @@ static int Menu_options(MenuList* list) {
 					// cache the result
 					list->max_width = mw = MIN(mw, screen->w - SCALE1(PADDING *2));
 				}
-				
 				int ox = (screen->w - mw) / 2;
 				int oy = SCALE1(PADDING + PILL_SIZE);
 				int selected_row = selected - start;
 				for (int i=start,j=0; i<end; i++,j++) {
 					MenuItem* item = &items[i];
 					SDL_Color text_color = COLOR_WHITE;
-
 					if (j==selected_row) {
 						// gray pill
 						GFX_blitPill(ASSET_OPTION, screen, &(SDL_Rect){
@@ -4224,7 +4242,6 @@ static int Menu_options(MenuList* list) {
 							mw,
 							SCALE1(BUTTON_SIZE)
 						});
-						
 						// white pill
 						int w = 0;
 						TTF_SizeUTF8(font.small, item->name, &w, NULL);
@@ -4236,7 +4253,6 @@ static int Menu_options(MenuList* list) {
 							SCALE1(BUTTON_SIZE)
 						});
 						text_color = COLOR_BLACK;
-						
 						if (item->desc) desc = item->desc;
 					}
 					text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
@@ -4245,7 +4261,6 @@ static int Menu_options(MenuList* list) {
 						oy+SCALE1((j*BUTTON_SIZE)+1)
 					});
 					SDL_FreeSurface(text);
-					
 					if (await_input && j==selected_row) {
 						// buh
 					}
@@ -4263,7 +4278,6 @@ static int Menu_options(MenuList* list) {
 			if (show_settings && !GetHDMI()) GFX_blitHardwareHints(screen, show_settings);
 			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
 			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
-			
 			GFX_flip(screen);
 			dirty = 0;
 		}
