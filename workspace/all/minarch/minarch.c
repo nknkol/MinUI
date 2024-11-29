@@ -116,26 +116,6 @@ static struct Core {
 typedef int (*Zip_extract_t)(FILE* zip, FILE* dst, size_t size);
 
 ///////////////////////////////////////
-/**
- * @brief 复制 ZIP 文件中的未压缩数据到目标文件。
- *
- * 功能：
- * - 按块从 ZIP 文件中读取指定大小的数据，并写入目标文件。
- * - 使用固定块大小（`ZIP_CHUNK_SIZE`）分批处理，避免内存占用过高。
- *
- * 用法：
- * - 参数 `zip`：已打开的 ZIP 文件的文件指针，必须可读。
- * - 参数 `dst`：目标文件的文件指针，必须可写。
- * - 参数 `size`：需要复制的数据字节数。
- * - 返回值：
- *   - 返回 `0` 表示数据复制成功。
- *   - 返回 `-1` 表示读取或写入操作失败。
- *
- * 注意：
- * - 调用方需确保 `zip` 和 `dst` 文件指针有效且具备读写权限。
- * - 读取和写入过程中若发生错误，会提前终止并返回 `-1`。
- * - 确保 `size` 不超出源文件的可用数据大小。
- */
 static int Zip_copy(FILE* zip, FILE* dst, size_t size) { // uncompressed?
 	uint8_t buffer[ZIP_CHUNK_SIZE];
 	while (size) {
@@ -147,31 +127,6 @@ static int Zip_copy(FILE* zip, FILE* dst, size_t size) { // uncompressed?
 	return 0;
 }
 
-///////////////////////////////////////
-/**
- * @brief 解压缩 ZIP 文件中的压缩数据并写入目标文件。
- *
- * 功能：
- * - 使用 zlib 库解压缩 ZIP 文件的压缩数据。
- * - 按块读取压缩数据，逐步解压缩后写入目标文件。
- * - 支持 GZIP 格式的无头解压（通过 `-MAX_WBITS` 参数）。
- *
- * 用法：
- * - 参数 `zip`：指向包含压缩数据的源文件指针，必须可读。
- * - 参数 `dst`：目标文件的文件指针，用于写入解压缩后的数据，必须可写。
- * - 参数 `size`：需要解压缩的压缩数据大小（以字节为单位）。
- * - 返回值：
- *   - `Z_OK`：解压缩成功。
- *   - `Z_ERRNO`：文件读取或写入错误。
- *   - `Z_MEM_ERROR`：内存分配错误。
- *   - `Z_DATA_ERROR`：压缩数据错误或格式不支持。
- *
- * 注意：
- * - 调用方需确保 `zip` 和 `dst` 文件指针有效，且具备读写权限。
- * - `size` 必须与压缩数据大小匹配，否则可能导致解压错误。
- * - 使用 zlib 的 `inflate` 函数进行解压缩，需确保已正确链接 zlib 库。
- * - 若解压过程中出现错误，函数会提前终止并释放相关资源。
- */
 static int Zip_inflate(FILE* zip, FILE* dst, size_t size) { // compressed
 	z_stream stream = {0};
 	size_t have = 0;
@@ -230,25 +185,6 @@ static int Zip_inflate(FILE* zip, FILE* dst, size_t size) { // compressed
 }
 
 ///////////////////////////////////////
-/**
- * @brief 定义全局游戏数据结构，存储游戏的路径、名称、数据和状态等信息。
- *
- * 字段说明：
- * - `path`：游戏文件的完整路径。
- * - `name`：游戏文件的基本名称（不含路径，可能考虑重命名为 `basename`）。
- * - `m3u_path`：关联的 M3U 播放列表文件的路径（如果存在）。
- * - `tmp_path`：解压后文件的临时存储路径（针对 ZIP 文件）。
- * - `data`：加载到内存的游戏文件数据指针。
- * - `size`：游戏文件的大小（以字节为单位）。
- * - `is_open`：标志游戏文件是否已成功打开：
- *   - `1` 表示游戏已成功加载。
- *   - `0` 表示游戏未加载或加载失败。
- *
- * 用法：
- * - 全局变量 `game` 用于存储当前加载的游戏相关信息。
- * - 在加载游戏时，需对结构体字段进行初始化和清理。
- * - 对于 ZIP 文件，`tmp_path` 会存储解压后的文件路径，需在使用后清理。
- */
 static struct Game {
 	char path[MAX_PATH];
 	char name[MAX_PATH]; // TODO: rename to basename?
@@ -259,20 +195,7 @@ static struct Game {
 	int is_open;
 } game;
 
-/**
- * @brief 打开并初始化游戏文件，支持普通文件和 ZIP 压缩文件的处理。
- *
- * 功能：
- * - 解析并加载游戏路径和文件名。
- * - 如果是 ZIP 文件且核心不支持，提取支持格式的文件。
- * - 加载游戏数据到内存（如果核心不需要完整路径）。
- * - 检查并处理与游戏相关的 M3U 播放列表文件。
- * - 设置全局游戏结构的打开状态。
- *
- * 用法：
- * - 参数 `path`：游戏文件的有效路径，需包含扩展名（如 `.zip`、`.iso`）。
- * - 确保路径指向的文件存在且可读，支持的文件类型由核心定义。
- */
+
 static void Game_open(char* path) {
 	LOG_info("Game_open\n");
 	memset(&game, 0, sizeof(game));
@@ -438,24 +361,6 @@ static void Game_open(char* path) {
 }
 
 ///////////////////////////////////////
-/**
- * @brief 关闭当前加载的游戏并释放相关资源。
- *
- * 功能：
- * - 释放加载到内存的游戏数据（如果存在）。
- * - 删除解压后的临时文件（如果存在）。
- * - 重置全局游戏状态为未打开（`is_open = 0`）。
- * - 确保振动功能关闭（调用 `VIB_setStrength(0)`）。
- *
- * 用法：
- * - 在游戏结束或需要切换游戏时调用。
- * - 无需参数。
- * - 函数自动检查并释放资源，无需调用方额外操作。
- *
- * 注意：
- * - 调用后，全局 `game` 结构体的状态会被重置。
- * - 确保在游戏未被占用（如未进行写操作）时调用此函数。
- */
 static void Game_close(void) {
 	if (game.data) free(game.data);
 	if (game.tmp_path[0]) remove(game.tmp_path);
@@ -466,29 +371,6 @@ static void Game_close(void) {
 static struct retro_disk_control_ext_callback disk_control_ext;
 
 ///////////////////////////////////////
-/**
- * @brief 更换游戏光盘（切换到指定路径的新游戏）。
- *
- * 功能：
- * - 检查新光盘路径是否有效且不同于当前路径。
- * - 关闭当前加载的游戏并释放相关资源。
- * - 加载新光盘路径对应的游戏文件。
- * - 更新核心的游戏信息并通知 UI 更新最近打开的记录。
- *
- * 用法：
- * - 参数 `path`：新光盘的文件路径，需为有效且可读取的路径。
- * - 函数逻辑：
- *   1. 检查新路径是否有效，若无效或与当前路径相同，则直接返回。
- *   2. 调用 `Game_close` 释放当前游戏资源。
- *   3. 调用 `Game_open` 加载新路径的游戏。
- *   4. 更新核心的游戏信息结构体 `retro_game_info`，并替换当前光盘的映像索引。
- *   5. 调用 `putFile` 更新 UI 所需的最近记录文件。
- *
- * 注意：
- * - 确保路径有效性，否则可能导致加载失败。
- * - 调用前应确保当前游戏运行状态允许切换光盘。
- * - 此函数会直接替换当前加载的游戏，无需手动清理。
- */
 static void Game_changeDisc(char* path) {
 	
 	if (exactMatch(game.path, path) || !exists(path)) return;
@@ -506,34 +388,6 @@ static void Game_changeDisc(char* path) {
 }
 
 ///////////////////////////////////////
-/**
- * @brief 获取和读取游戏的 SRAM 数据（保存文件）。
- *
- * 功能：
- * 1. **`SRAM_getPath`**：
- *    - 构造保存文件的完整路径。
- *    - 路径格式为 `<core.saves_dir>/<game.name>.sav`。
- *
- * 2. **`SRAM_read`**：
- *    - 检查核心是否支持 SRAM 数据。
- *    - 获取保存文件路径并尝试打开。
- *    - 将保存文件中的数据读取到核心的 SRAM 内存区。
- *    - 处理可能的错误并关闭文件句柄。
- *
- * 用法：
- * - `SRAM_getPath`：
- *   - 参数 `filename`：接收保存路径的字符数组，需分配足够的空间（`MAX_PATH`）。
- *   - 结果会将完整保存路径写入 `filename`。
- *
- * - `SRAM_read`：
- *   - 无参数。
- *   - 自动从保存路径加载 SRAM 数据。
- *
- * 注意：
- * - `SRAM_read` 的读取依赖核心是否支持 `RETRO_MEMORY_SAVE_RAM`，且需核心实现正确的内存映射。
- * - 调用 `SRAM_getPath` 时需确保 `filename` 缓冲区足够大。
- * - 若保存文件不存在或读取失败，SRAM 数据保持未初始化状态。
- */
 static void SRAM_getPath(char* filename) {
 	sprintf(filename, "%s/%s.sav", core.saves_dir, game.name);
 }
@@ -4182,19 +4036,16 @@ static int Menu_options(MenuList* list) {
 						});
 						SDL_FreeSurface(text);
 					}
+					text = TTF_RenderUTF8_Blended(font.large, truncated_text.text, text_color);
+					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+						SCALE1(PADDING + BUTTON_PADDING),
+						SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
+					});
+					SDL_FreeSurface(text);
 					//选中文字且文字超过屏幕一半
 					if (j == selected_row && truncated_text.is_truncated) {
-						// 超宽需要滚动，启用菜单文字滚动状态
-						// is_truncated_scroll = true;
-					}else {
-						//关闭菜单文字滚动状态
-						is_truncated_scroll = false;
-						text = TTF_RenderUTF8_Blended(font.large, truncated_text.text, text_color);
-						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-							SCALE1(PADDING + BUTTON_PADDING),
-							SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
-						});
-						SDL_FreeSurface(text);
+						// 超宽需要滚动，启用菜单文字滚动状态控制
+					}else{
 					}
 				}
 			}
@@ -4274,14 +4125,9 @@ static int Menu_options(MenuList* list) {
 					}
 				}
 			}
-			//底部按钮
-			if (show_settings && !GetHDMI()) GFX_blitHardwareHints(screen, show_settings);
-			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
-			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
 			GFX_flip(screen);
 			dirty = 0;
-		}
-		else GFX_sync();
+		}else GFX_sync();
 	}
 	return 0;
 }
