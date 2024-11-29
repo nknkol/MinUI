@@ -4049,38 +4049,7 @@ static int Menu_options(MenuList* list) {
 				}
 			}
 			else if (type==MENU_VAR || type==MENU_INPUT) {
-				//int mw = list->max_width;
 				int mw = screen->w - SCALE1(BUTTON_PADDING * 2);
-				// if (!mw) {
-				// 	// get the width of the widest row
-				// 	int mrw = 0;
-				// 	for (int i=0; i<count; i++) {
-				// 		MenuItem* item = &items[i];
-				// 		int w = 0;
-				// 		int lw = 0;
-				// 		int rw = 0;
-				// 		TTF_SizeUTF8(font.small, item->name, &lw, NULL);
-				// 		// every value list in an input table is the same
-				// 		// so only calculate rw for the first item...
-				// 		if (!mrw || type!=MENU_INPUT) {
-				// 			for (int j=0; item->values[j]; j++) {
-				// 				TTF_SizeUTF8(font.tiny, item->values[j], &rw, NULL);
-				// 				if (lw+rw>w) w = lw+rw;
-				// 				if (rw>mrw) mrw = rw;
-				// 			}
-				// 		}
-				// 		else {
-				// 			w = lw + mrw;
-				// 		}
-				// 		w += SCALE1(OPTION_PADDING*4);
-				// 		if (w>mw) mw = w;
-				// 	}
-				// 	fflush(stdout);
-				// 	// cache the result
-				// 	list->max_width = mw = MIN(mw, screen->w - SCALE1(PADDING *2));
-				// }
-				// int ox = (screen->w - mw) / 2;
-				// int oy = SCALE1(PADDING + PILL_SIZE);
 				int ox = SCALE1(PADDING);
 				int oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 				int selected_row = selected - start;
