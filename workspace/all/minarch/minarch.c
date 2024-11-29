@@ -3999,7 +3999,7 @@ static int Menu_options(MenuList* list) {
 							SCALE1(PILL_SIZE)
 						});
 						//白色背景
-						int w = 0;
+						int w;// = 0;
 						TTF_SizeUTF8(font.large, truncated_text.text, &w, NULL);
 						w += SCALE1(OPTION_PADDING * 2);
 						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
@@ -4068,7 +4068,7 @@ static int Menu_options(MenuList* list) {
 							SCALE1(PILL_SIZE)
 						});
 						//白色背景
-						int w = 0;
+						int w;// = 0;
 						TTF_SizeUTF8(font.large, truncated_text.text, &w, NULL);
 						w += SCALE1(OPTION_PADDING * 2);
 						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
