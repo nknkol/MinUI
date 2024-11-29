@@ -126,7 +126,6 @@ static int Zip_copy(FILE* zip, FILE* dst, size_t size) { // uncompressed?
 	}
 	return 0;
 }
-
 static int Zip_inflate(FILE* zip, FILE* dst, size_t size) { // compressed
 	z_stream stream = {0};
 	size_t have = 0;
@@ -4050,81 +4049,106 @@ static int Menu_options(MenuList* list) {
 				}
 			}
 			else if (type==MENU_VAR || type==MENU_INPUT) {
-				int mw = list->max_width;
-				if (!mw) {
-					// get the width of the widest row
-					int mrw = 0;
-					for (int i=0; i<count; i++) {
-						MenuItem* item = &items[i];
-						int w = 0;
-						int lw = 0;
-						int rw = 0;
-						TTF_SizeUTF8(font.small, item->name, &lw, NULL);
-						// every value list in an input table is the same
-						// so only calculate rw for the first item...
-						if (!mrw || type!=MENU_INPUT) {
-							for (int j=0; item->values[j]; j++) {
-								TTF_SizeUTF8(font.tiny, item->values[j], &rw, NULL);
-								if (lw+rw>w) w = lw+rw;
-								if (rw>mrw) mrw = rw;
-							}
-						}
-						else {
-							w = lw + mrw;
-						}
-						w += SCALE1(OPTION_PADDING*4);
-						if (w>mw) mw = w;
-					}
-					fflush(stdout);
-					// cache the result
-					list->max_width = mw = MIN(mw, screen->w - SCALE1(PADDING *2));
-				}
-				int ox = (screen->w - mw) / 2;
-				int oy = SCALE1(PADDING + PILL_SIZE);
+				//int mw = list->max_width;
+				int mw = screen->w - SCALE1(BUTTON_PADDING * 2);
+				// if (!mw) {
+				// 	// get the width of the widest row
+				// 	int mrw = 0;
+				// 	for (int i=0; i<count; i++) {
+				// 		MenuItem* item = &items[i];
+				// 		int w = 0;
+				// 		int lw = 0;
+				// 		int rw = 0;
+				// 		TTF_SizeUTF8(font.small, item->name, &lw, NULL);
+				// 		// every value list in an input table is the same
+				// 		// so only calculate rw for the first item...
+				// 		if (!mrw || type!=MENU_INPUT) {
+				// 			for (int j=0; item->values[j]; j++) {
+				// 				TTF_SizeUTF8(font.tiny, item->values[j], &rw, NULL);
+				// 				if (lw+rw>w) w = lw+rw;
+				// 				if (rw>mrw) mrw = rw;
+				// 			}
+				// 		}
+				// 		else {
+				// 			w = lw + mrw;
+				// 		}
+				// 		w += SCALE1(OPTION_PADDING*4);
+				// 		if (w>mw) mw = w;
+				// 	}
+				// 	fflush(stdout);
+				// 	// cache the result
+				// 	list->max_width = mw = MIN(mw, screen->w - SCALE1(PADDING *2));
+				// }
+				// int ox = (screen->w - mw) / 2;
+				// int oy = SCALE1(PADDING + PILL_SIZE);
+				int ox = SCALE1(PADDING);
+				int oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 				int selected_row = selected - start;
 				for (int i=start,j=0; i<end; i++,j++) {
 					MenuItem* item = &items[i];
 					SDL_Color text_color = COLOR_WHITE;
+					//文字宽度处理逻辑
+					int max_width = screen->w / 2; // 限制宽度为屏幕的一半
+					TruncatedText truncated_text = truncate_with_ellipsis(font.large, item->name, max_width);
 					if (j==selected_row) {
-						// gray pill
-						GFX_blitPill(ASSET_OPTION, screen, &(SDL_Rect){
+						//灰色背景
+						GFX_blitPill(ASSET_DARK_GRAY_PILL, screen, &(SDL_Rect){
 							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
-							mw,
-							SCALE1(BUTTON_SIZE)
+							SCALE1(oy + PADDING + (j * PILL_SIZE)),
+							screen->w - SCALE1(PADDING * 2),
+							SCALE1(PILL_SIZE)
 						});
-						// white pill
+						//白色背景
 						int w = 0;
-						TTF_SizeUTF8(font.small, item->name, &w, NULL);
-						w += SCALE1(OPTION_PADDING*2);
-						GFX_blitPill(ASSET_BUTTON, screen, &(SDL_Rect){
-							ox,
-							oy+SCALE1(j*BUTTON_SIZE),
+						TTF_SizeUTF8(font.large, truncated_text.text, &w, NULL);
+						w += SCALE1(OPTION_PADDING * 2);
+						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
+							SCALE1(PADDING),
+							SCALE1(oy + PADDING + (j * PILL_SIZE)),
 							w,
-							SCALE1(BUTTON_SIZE)
+							SCALE1(PILL_SIZE)
 						});
 						text_color = COLOR_BLACK;
 						if (item->desc) desc = item->desc;
+					}else {
+						//未选中渲染字体阴影
+						SDL_Surface* shadow_text = TTF_RenderUTF8_Blended(font.large, truncated_text.text, COLOR_BLACK);
+						SDL_BlitSurface(shadow_text, NULL, screen, &(SDL_Rect){
+							SCALE1(PADDING + BUTTON_PADDING + 2),
+							SCALE1(oy + PADDING + (j * PILL_SIZE) + 5)
+						});
+						SDL_FreeSurface(shadow_text);
+						//未选中右侧选项阴影
+						SDL_Surface* values_shadow = TTF_RenderUTF8_Blended(font.medium, item->values[item->value], COLOR_BLACK);
+						SDL_BlitSurface(values_shadow, NULL, screen, &(SDL_Rect){
+							ox + mw - text->w,
+							SCALE1(oy + PADDING + (j * PILL_SIZE) + 5)
+						});
+						SDL_FreeSurface(values_shadow);
 					}
-					text = TTF_RenderUTF8_Blended(font.small, item->name, text_color);
+					text = TTF_RenderUTF8_Blended(font.large, truncated_text.text, text_color);
 					SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-						ox+SCALE1(OPTION_PADDING),
-						oy+SCALE1((j*BUTTON_SIZE)+1)
+						SCALE1(PADDING + BUTTON_PADDING),
+						SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
 					});
 					SDL_FreeSurface(text);
 					if (await_input && j==selected_row) {
 						// buh
 					}
 					else if (item->value>=0) {
-						text = TTF_RenderUTF8_Blended(font.tiny, item->values[item->value], COLOR_WHITE); // always white
+						text = TTF_RenderUTF8_Blended(font.medium, item->values[item->value], COLOR_WHITE);
 						SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
-							ox + mw - text->w - SCALE1(OPTION_PADDING),
-							oy+SCALE1((j*BUTTON_SIZE)+3)
+							ox + mw - text->w,
+							SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
 						});
 						SDL_FreeSurface(text);
 					}
 				}
 			}
+			//底部按钮
+			if (show_settings && !GetHDMI()) GFX_blitHardwareHints(screen, show_settings);
+			else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
+			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
 			GFX_flip(screen);
 			dirty = 0;
 		}else GFX_sync();
