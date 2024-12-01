@@ -3714,6 +3714,7 @@ TruncatedText truncate_with_ellipsis(TTF_Font* font, const char* text, int max_w
     free(truncated);
     return result;
 }
+#define SCROLL_SPEED 2  // 可以根据需要调整滚动速度
 static int Menu_options(MenuList* list) {
 	MenuItem* items = list->items;
 	int type = list->type;
@@ -4043,8 +4044,7 @@ static int Menu_options(MenuList* list) {
 					SDL_FreeSurface(text);
 					//选中文字且文字超过屏幕一半
 					if (j == selected_row && truncated_text.is_truncated) {
-						// 超宽需要滚动，启用菜单文字滚动状态控制
-					}else{
+					//
 					}
 				}
 			}
