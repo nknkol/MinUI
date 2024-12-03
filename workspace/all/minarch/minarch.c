@@ -3714,7 +3714,80 @@ TruncatedText truncate_with_ellipsis(TTF_Font* font, const char* text, int max_w
     free(truncated);
     return result;
 }
+///////////////////////
 #define SCROLL_SPEED 2  // 可以根据需要调整滚动速度
+typedef struct {
+    const char* text;          // 要滚动的文本
+	SDL_Rect clip_rect;
+	SDL_Rect pill_rect;
+    int x, y;                  // 当前文本起始位置
+    int text_width;            // 文本的宽度（可预先计算或动态获取）
+    int scroll_speed;          // 滚动速度
+} ScrollingText;
+void renderScrollingText(ScrollingText* scrollingText, SDL_Rect* clip_rect) {
+    // 创建文本表面
+    SDL_Surface* text_surface = TTF_RenderUTF8_Blended(font.large, scrollingText->text, COLOR_BLACK);
+    if (!text_surface) {
+        printf("Failed to render text: %s\n", TTF_GetError());
+        return;
+    }
+    // 更新滚动逻辑
+    scrollingText->x -= scrollingText->scroll_speed;
+    if (scrollingText->x + scrollingText->text_width <= clip_rect->x) {
+        // 当当前文本完全滚出左边界，将其位置重置到右边界
+        scrollingText->x += scrollingText->text_width;
+    }
+    // 在限制区域内绘制文本
+    int current_x = scrollingText->x;
+    while (current_x < clip_rect->x + clip_rect->w) {
+        SDL_Rect dest_rect = { current_x, scrollingText->y, text_surface->w, text_surface->h };
+        // 限制绘制范围在 clip_rect 内
+        SDL_Rect clipped_dest;
+        if (SDL_IntersectRect(&dest_rect, clip_rect, &clipped_dest)) {
+            // 计算对应的源图像偏移
+            SDL_Rect src_rect = {
+                clipped_dest.x - current_x, // 水平偏移量
+                0,
+                clipped_dest.w, 
+                clipped_dest.h
+            };
+            SDL_BlitSurface(text_surface, &src_rect, screen, &clipped_dest);
+        }
+        // 更新绘制位置，添加一个文本的宽度
+        current_x += scrollingText->text_width;
+    }
+    // 释放文本表面
+    SDL_FreeSurface(text_surface);
+}
+// void renderScrollingText(ScrollingText* scrollingText, SDL_Rect* clip_rect) {
+//     // 创建文本表面
+//     SDL_Surface* text_surface = TTF_RenderUTF8_Blended(font.large, scrollingText->text, COLOR_BLACK);
+//     if (!text_surface) {
+//         printf("Failed to render text: %s\n", TTF_GetError());
+//         return;
+//     }
+//     // 更新滚动逻辑
+//     scrollingText->x -= scrollingText->scroll_speed;
+//     if (scrollingText->x + scrollingText->text_width <= clip_rect->x) {
+//         // 当文本完全滚出左边界，将其重置到右边界
+//         scrollingText->x = clip_rect->x + clip_rect->w;
+//     }
+//     // 计算绘制起点和滚动位置
+//     int current_x = scrollingText->x;
+//     while (current_x < clip_rect->x + clip_rect->w) {
+//         SDL_Rect dest_rect = { current_x, scrollingText->y, text_surface->w, text_surface->h };
+//         // 限制绘制范围在 clip_rect 内
+//         SDL_Rect clipped_dest;
+//         if (SDL_IntersectRect(&dest_rect, clip_rect, &clipped_dest)) {
+//             SDL_BlitSurface(text_surface, NULL, screen, &clipped_dest);
+//         }
+//         // 下一个文本段的位置
+//         current_x += scrollingText->text_width;
+//     }
+//     // 释放文本表面
+//     SDL_FreeSurface(text_surface);
+// }
+///////////////////////
 static int Menu_options(MenuList* list) {
 	MenuItem* items = list->items;
 	int type = list->type;
@@ -3732,6 +3805,9 @@ static int Menu_options(MenuList* list) {
 	if (restore_w!=DEVICE_WIDTH || restore_h!=DEVICE_HEIGHT) {
 		screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
 	}
+	//文字滚动标志位、结构体
+	ScrollingText scrollingText;
+    bool needScrolling = false;
 	// dependent on option list offset top and bottom, eg. the gray triangles
 	//int max_visible_options = (screen->h - ((SCALE1(PADDING + PILL_SIZE) * 2) + SCALE1(BUTTON_SIZE))) / SCALE1(BUTTON_SIZE); // 7 for 480, 10 for 720
 	int max_visible_options = 5; // 7 for 480, 10 for 720
@@ -3746,6 +3822,8 @@ static int Menu_options(MenuList* list) {
 	OptionSaveChanges_updateDesc();
 	
 	int defer_menu = false;
+	// 定义一个变量保存退出内层循环的按键
+    int savedKeyPress = 0;
 	while (show_options) {
 		if (await_input) {
 			defer_menu = true;
@@ -3767,7 +3845,121 @@ static int Menu_options(MenuList* list) {
 		
 		GFX_startFrame();
 		PAD_poll();
-		
+		if (savedKeyPress) {
+            if (savedKeyPress == BTN_UP) {
+                // 按键判断a - 处理上键
+                selected -= 1;
+				if (selected<0) {
+					selected = count - 1;
+					start = MAX(0,count - max_visible_options);
+					end = count;
+				}
+				else if (selected<start) {
+					start -= 1;
+					end -= 1;
+				}
+				dirty = 1;
+            } else if (savedKeyPress == BTN_DOWN) {
+                // 按键判断a - 处理下键
+                selected += 1;
+				if (selected>=count) {
+					selected = 0;
+					start = 0;
+					end = visible_rows;
+				}
+				else if (selected>=end) {
+					start += 1;
+					end += 1;
+				}
+				dirty = 1;
+			}else if (savedKeyPress == BTN_LEFT) {
+                // 按键判断a - 处理BTN_LEFT键
+				//：增加修改分辨率后刷新背景
+				int old_scaling = screen_scaling;
+				MenuItem* item = &items[selected];
+				if (item->values && item->values!=button_labels) { // not an input binding
+					if (PAD_justRepeated(BTN_LEFT)) {
+						if (item->value>0) item->value -= 1;
+						else {
+							int j;
+							for (j=0; item->values[j]; j++);
+							item->value = j - 1;
+						}
+				
+						if (item->on_change) item->on_change(list, selected);
+						else if (list->on_change) list->on_change(list, selected);
+						//：检测分辨率变化后修改背景
+						if (screen_scaling!=old_scaling) {
+								selectScaler(renderer.true_w,renderer.true_h,renderer.src_p);
+						
+								restore_w = screen->w;
+								restore_h = screen->h;
+								restore_p = screen->pitch;
+								screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
+						
+								SDL_FillRect(backing, NULL, 0);
+								Menu_scale(menu.bitmap, backing);
+							}
+						dirty = 1;
+					}
+				}
+			}else if (savedKeyPress == BTN_RIGHT) {
+                // 按键判断a - 处理BTN_RIGHT键
+				int old_scaling = screen_scaling;
+				MenuItem* item = &items[selected];
+				if (item->values[item->value+1]) item->value += 1;
+					else item->value = 0;
+					if (item->on_change) item->on_change(list, selected);
+					else if (list->on_change) list->on_change(list, selected);
+					//
+					if (screen_scaling!=old_scaling) {
+							selectScaler(renderer.true_w,renderer.true_h,renderer.src_p);
+						
+							restore_w = screen->w;
+							restore_h = screen->h;
+							restore_p = screen->pitch;
+							screen = GFX_resize(DEVICE_WIDTH,DEVICE_HEIGHT,DEVICE_PITCH);
+						
+							SDL_FillRect(backing, NULL, 0);
+							Menu_scale(menu.bitmap, backing);
+						}
+					dirty = 1;	
+			}else if (savedKeyPress == BTN_B) {
+                // 按键判断a - 处理BTN_B键
+				show_options = 0;
+			}else if (savedKeyPress == BTN_A) {
+                // 按键判断a - 处理BTN_A键
+				MenuItem* item = &items[selected];
+				int result = MENU_CALLBACK_NOP;
+				if (item->on_confirm) result = item->on_confirm(list, selected); // item-specific action, eg. Save for all games
+				else if (item->submenu) result = Menu_options(item->submenu); // drill down, eg. main options menu
+				// TODO: is there a way to defer on_confirm for MENU_INPUT so we can clear the currently set value to indicate it is awaiting input? 
+				// eg. set a flag to call on_confirm at the beginning of the next frame?
+				else if (list->on_confirm) {
+					if (item->values==button_labels) await_input = 1; // button binding
+					else result = list->on_confirm(list, selected); // list-specific action, eg. show item detail view or input binding
+				}
+				if (result==MENU_CALLBACK_EXIT) show_options = 0;
+				else {
+					if (result==MENU_CALLBACK_NEXT_ITEM) {
+						// copied from PAD_justRepeated(BTN_DOWN) above
+						selected += 1;
+						if (selected>=count) {
+							selected = 0;
+							start = 0;
+							end = visible_rows;
+						}
+						else if (selected>=end) {
+							start += 1;
+							end += 1;
+						}
+					}
+					dirty = 1;
+				}
+			}
+            // 处理完后，清除保存的按键状态
+            savedKeyPress = 0;
+        }
 		if (PAD_justRepeated(BTN_UP)) {
 			selected -= 1;
 			if (selected<0) {
@@ -4002,13 +4194,24 @@ static int Menu_options(MenuList* list) {
 						//白色背景
 						int w;// = 0;
 						TTF_SizeUTF8(font.large, truncated_text.text, &w, NULL);
-						w += SCALE1(OPTION_PADDING * 2);
+						w += SCALE1(BUTTON_PADDING * 2);
 						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
 							SCALE1(PADDING),
 							SCALE1(oy + PADDING + (j * PILL_SIZE)),
 							w,
 							SCALE1(PILL_SIZE)
 						});
+						scrollingText.pill_rect.x = SCALE1(PADDING);
+						scrollingText.pill_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
+						scrollingText.pill_rect.w = w;
+						scrollingText.pill_rect.h = SCALE1(PILL_SIZE);
+						//
+						scrollingText.clip_rect.x = SCALE1(PADDING);
+						scrollingText.clip_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE) - (BUTTON_PADDING * 2));
+						scrollingText.clip_rect.w = w;
+						scrollingText.clip_rect.h = SCALE1(PILL_SIZE);
+						scrollingText.text_width = truncated_text.original_length;
+						//scrollingText.truncated_text = truncated_text.text;
 						text_color = COLOR_BLACK;
 						if (item->desc) desc = item->desc;
 					}else {
@@ -4044,7 +4247,16 @@ static int Menu_options(MenuList* list) {
 					SDL_FreeSurface(text);
 					//选中文字且文字超过屏幕一半
 					if (j == selected_row && truncated_text.is_truncated) {
-					//
+						//// 设置滚动文本参数
+                        scrollingText.text = item->name;
+                        scrollingText.x = SCALE1(PADDING + BUTTON_PADDING); // 从屏幕右边开始
+                        scrollingText.y = SCALE1(oy + PADDING + (j * PILL_SIZE) + 4);/* 计算文本的垂直位置 */
+                        scrollingText.scroll_speed = SCROLL_SPEED;
+                        //scrollingText.x = SCALE1(PADDING + BUTTON_PADDING);
+                        //scrollingText.y = max_width;
+                        // scrollingText.text_width = truncated_text.original_length;
+                        needScrolling = true;
+                        //break;
 					}
 				}
 			}
@@ -4070,13 +4282,23 @@ static int Menu_options(MenuList* list) {
 						//白色背景
 						int w;// = 0;
 						TTF_SizeUTF8(font.large, truncated_text.text, &w, NULL);
-						w += SCALE1(OPTION_PADDING * 2);
+						w += SCALE1(BUTTON_PADDING * 2);
 						GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
 							SCALE1(PADDING),
 							SCALE1(oy + PADDING + (j * PILL_SIZE)),
 							w,
 							SCALE1(PILL_SIZE)
 						});
+						scrollingText.pill_rect.x = SCALE1(PADDING);
+						scrollingText.pill_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
+						scrollingText.pill_rect.w = w;
+						scrollingText.pill_rect.h = SCALE1(PILL_SIZE);
+						//
+						scrollingText.clip_rect.x = SCALE1(PADDING);
+						scrollingText.clip_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE) - (BUTTON_PADDING * 2));
+						scrollingText.clip_rect.w = w;
+						scrollingText.clip_rect.h = SCALE1(PILL_SIZE);
+						scrollingText.text_width = truncated_text.original_length;
 						text_color = COLOR_BLACK;
 						if (item->desc) desc = item->desc;
 					}else {
@@ -4101,6 +4323,19 @@ static int Menu_options(MenuList* list) {
 						SCALE1(oy + PADDING + (j * PILL_SIZE) + 4)
 					});
 					SDL_FreeSurface(text);
+					//选中文字且文字超过屏幕一半
+					if (j == selected_row && truncated_text.is_truncated) {
+						//// 设置滚动文本参数
+                        scrollingText.text = item->name;
+                        scrollingText.x = SCALE1(PADDING + BUTTON_PADDING); // 从屏幕右边开始
+                        scrollingText.y = SCALE1(oy + PADDING + (j * PILL_SIZE) + 4);/* 计算文本的垂直位置 */
+                        scrollingText.scroll_speed = SCROLL_SPEED;
+                        //scrollingText.x = SCALE1(PADDING + BUTTON_PADDING);
+                        //scrollingText.y = max_width;
+                        // scrollingText.text_width = truncated_text.original_length;
+                        needScrolling = true;
+                        //break;
+					}
 					if (await_input && j==selected_row) {
 						// buh
 					}
@@ -4120,7 +4355,60 @@ static int Menu_options(MenuList* list) {
 			GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
 			GFX_flip(screen);
 			dirty = 0;
-		}else GFX_sync();
+		}
+		if (needScrolling) {
+            // 启动滚动文本循环
+            while (1) {
+				PAD_poll();
+                // 检测退出循环的按键（按键判断b）
+                if (PAD_justPressed(BTN_UP)) {
+					savedKeyPress = BTN_UP;
+					needScrolling = false; // 重置 needScrolling 标志
+					dirty = 1;
+                    break;  // 退出循环，停止滚动
+                }else if (PAD_justPressed(BTN_DOWN)) {
+					savedKeyPress = BTN_DOWN;
+                    needScrolling = false; // 重置 needScrolling 标志
+					dirty = 1;
+                    break;  // 退出循环，停止滚动
+                }else if (PAD_justPressed(BTN_LEFT)) {
+					savedKeyPress = BTN_LEFT;
+                    needScrolling = false; // 重置 needScrolling 标志
+					dirty = 1;
+                    break;  // 退出循环，停止滚动
+                }else if (PAD_justPressed(BTN_RIGHT)) {
+					savedKeyPress = BTN_RIGHT;
+                    needScrolling = false; // 重置 needScrolling 标志
+					dirty = 1;
+                    break;  // 退出循环，停止滚动
+                }else if (PAD_justPressed(BTN_B)) {
+					savedKeyPress = BTN_B;
+                    needScrolling = false; // 重置 needScrolling 标志
+					show_options = 0;
+					dirty = 1;
+                    break;  // 退出循环，停止滚动
+                }else if (PAD_justPressed(BTN_A)) {
+					savedKeyPress = BTN_A;
+                    needScrolling = false; // 重置 needScrolling 标志
+					//show_options = 0;
+					dirty = 1;
+                    break;  // 退出循环，停止滚动
+                }
+				TTF_SizeUTF8(font.large, scrollingText.text, &scrollingText.pill_rect.w, NULL);
+				GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
+					scrollingText.pill_rect.x,
+					scrollingText.pill_rect.y,
+					scrollingText.pill_rect.w,
+					scrollingText.pill_rect.h
+				});
+                // 渲染滚动文本
+                renderScrollingText(&scrollingText, &scrollingText.clip_rect);
+                // 更新显示
+                GFX_flip(screen);
+            }
+        }else {
+            GFX_sync();
+        }
 	}
 	return 0;
 }
