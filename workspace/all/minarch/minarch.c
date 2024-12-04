@@ -4291,7 +4291,7 @@ static int Menu_options(MenuList* list) {
 						});
 						scrollingText.pill_rect.x = SCALE1(PADDING);
 						scrollingText.pill_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
-						scrollingText.pill_rect.w = w;
+						scrollingText.pill_rect.w = SCALE1(BUTTON_PADDING * 2);
 						scrollingText.pill_rect.h = SCALE1(PILL_SIZE);
 						//
 						scrollingText.clip_rect.x = SCALE1(PADDING);
