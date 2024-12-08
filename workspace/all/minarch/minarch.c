@@ -3788,9 +3788,9 @@ typedef struct {
 //     SDL_FreeSurface(text_surface);
 // }
 void renderScrollingText(ScrollingText* scrollingText) {
-    // 获取屏幕一半宽度作为最大宽度限制，与静态文本一致
+    // 获取屏幕一半宽度作为最大宽度限制
     int max_width = screen->w / 2;
-
+    
     // 绘制白色药丸背景
     GFX_blitPill(ASSET_WHITE_PILL, screen, &scrollingText->clip_rect);
 
@@ -3801,23 +3801,24 @@ void renderScrollingText(ScrollingText* scrollingText) {
         return;
     }
 
-    // 计算文本开始和结束位置
+    // 计算固定的文本边界
     int text_start_x = SCALE1(PADDING + BUTTON_PADDING);
-    int text_end_x = text_start_x + max_width;  // 限制最大宽度
+    int text_end_x = text_start_x + max_width;
 
     // 更新滚动位置
     scrollingText->x -= scrollingText->scroll_speed;
 
-    // 无限循环逻辑：当文本完全移出到文本起始位置时，重置到右边界
-    if (scrollingText->x + text_surface->w < text_start_x) {
-        // 重置到有效的右边界（不超过最大宽度）
-        scrollingText->x = text_end_x;
-    }
+    // 创建实际的绘制区域，使用与静态文本相同的起始位置和宽度
+    SDL_Rect text_area = {
+        text_start_x,                    // 固定的左边界
+        scrollingText->clip_rect.y,
+        max_width,                       // 最大宽度限制
+        scrollingText->clip_rect.h
+    };
 
-    // 绘制文本，考虑最大宽度限制
-    SDL_Rect clip_with_max_width = scrollingText->clip_rect;
-    if (clip_with_max_width.w > max_width) {
-        clip_with_max_width.w = max_width;
+    // 重置逻辑：当文本完全移出显示区域时重置
+    if (scrollingText->x + text_surface->w < text_start_x) {
+        scrollingText->x = text_end_x;
     }
 
     // 绘制两次文本以实现无缝循环
@@ -3829,9 +3830,9 @@ void renderScrollingText(ScrollingText* scrollingText) {
             text_surface->h
         };
 
-        // 使用考虑最大宽度的裁剪矩形
+        // 使用text_area作为裁剪区域
         SDL_Rect clipped_dest;
-        if (SDL_IntersectRect(&dest_rect, &clip_with_max_width, &clipped_dest)) {
+        if (SDL_IntersectRect(&dest_rect, &text_area, &clipped_dest)) {
             // 计算源矩形
             SDL_Rect src_rect = {
                 clipped_dest.x - dest_rect.x,
@@ -4993,6 +4994,9 @@ static void* coreThread(void *arg) {
 }
 
 int main(int argc , char* argv[]) {
+	//init_i18n("zh");
+	init_i18n("en");
+	switch_language("zh");
 	LOG_info("MinArch\n");
 
 	setOverclock(overclock); // default to normal
@@ -5146,6 +5150,7 @@ finish:
 	GFX_quit();
 	
 	buffer_dealloc();
-	
+	//：汉化
+	cleanup_i18n();
 	return EXIT_SUCCESS;
 }

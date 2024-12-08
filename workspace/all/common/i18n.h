@@ -6,46 +6,47 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include "defines.h"
+// 使用项目定义的路径
+#define LANG_PATH RES_PATH "/lang"
 
 // 语言项最大数量
 #define MAX_STRINGS 1000
 // 字符串最大长度
 #define MAX_STRING_LEN 256
-// 路径最大长度
-#define MAX_PATH_LEN 512
 
 typedef struct {
-    char* strings[MAX_STRINGS];
-    char* translations[MAX_STRINGS];
-    int count;
-    char current_lang[32];
-    char lang_path[MAX_PATH_LEN];  // 新增：语言文件路径
+    char** ids;                  // 文本ID数组
+    char** translations;         // 对应的翻译文本
+    int count;                   // 当前项数量
+    char current_lang[32];       // 当前语言
 } I18N_Config;
 
 // 全局配置
 static I18N_Config g_i18n = {0};
 
-// 去除字符串两端的空白字符
-static char* trim(char* str) {
-    char* end;
-    while(isspace((unsigned char)*str)) str++;
-    if(*str == 0) return str;
-    end = str + strlen(str) - 1;
-    while(end > str && isspace((unsigned char)*end)) end--;
-    end[1] = '\0';
-    return str;
-}
-
 // 从INI文件加载语言
-static int load_language(const char* full_path) {
-    FILE* file = fopen(full_path, "r");
+static int load_language(const char* lang) {
+    char filepath[512];
+    snprintf(filepath, sizeof(filepath), LANG_PATH "/lang_%s.ini", lang);
+    
+    FILE* file = fopen(filepath, "r");
     if (!file) {
-        fprintf(stderr, "Cannot open language file: %s\n", full_path);
+        printf("Cannot open language file: %s\n", filepath);
         return 0;
     }
     
-    // 清理之前的数据
-    cleanup_i18n();
+    // 首次加载时初始化数组
+    if (!g_i18n.ids) {
+        g_i18n.ids = (char**)malloc(MAX_STRINGS * sizeof(char*));
+        g_i18n.translations = (char**)malloc(MAX_STRINGS * sizeof(char*));
+    } else {
+        // 清理之前的数据
+        for (int i = 0; i < g_i18n.count; i++) {
+            free(g_i18n.translations[i]);
+        }
+    }
+    g_i18n.count = 0;
     
     char line[MAX_STRING_LEN];
     char *key, *value;
@@ -58,16 +59,27 @@ static int load_language(const char* full_path) {
         char* delimiter = strchr(line, '=');
         if (delimiter) {
             *delimiter = '\0';
-            key = trim(line);
-            value = trim(delimiter + 1);
+            key = line;
+            value = delimiter + 1;
             
-            // 移除结尾的换行符
-            char* newline = strchr(value, '\n');
-            if (newline) *newline = '\0';
+            // 移除前后空格
+            while (*key == ' ' || *key == '\t') key++;
+            while (*value == ' ' || *value == '\t') value++;
             
-            // 存储键值对
+            char* end = value + strlen(value) - 1;
+            while (end > value && (*end == '\n' || *end == '\r' || *end == ' ' || *end == '\t')) end--;
+            *(end + 1) = '\0';
+            
+            end = key + strlen(key) - 1;
+            while (end > key && (*end == ' ' || *end == '\t')) end--;
+            *(end + 1) = '\0';
+            
+            // 存储ID和翻译
             if (g_i18n.count < MAX_STRINGS) {
-                g_i18n.strings[g_i18n.count] = strdup(key);
+                if (g_i18n.count == 0) {
+                    // 第一次加载时保存ID
+                    g_i18n.ids[g_i18n.count] = strdup(key);
+                }
                 g_i18n.translations[g_i18n.count] = strdup(value);
                 g_i18n.count++;
             }
@@ -75,48 +87,43 @@ static int load_language(const char* full_path) {
     }
     
     fclose(file);
+    strncpy(g_i18n.current_lang, lang, sizeof(g_i18n.current_lang) - 1);
     return 1;
 }
 
-// 获取翻译后的字符串
-static const char* _(const char* str) {
+// 获取翻译文本
+static const char* get_text(const char* text_id) {
     for (int i = 0; i < g_i18n.count; i++) {
-        if (strcmp(g_i18n.strings[i], str) == 0) {
+        if (strcmp(g_i18n.ids[i], text_id) == 0) {
             return g_i18n.translations[i];
         }
     }
-    return str;  // 如果没找到翻译，返回原字符串
+    return text_id;  // 找不到翻译时返回ID本身
 }
 
 // 初始化语言系统
-static int init_i18n(const char* lang_path, const char* lang) {
-    // 保存语言文件路径
-    strncpy(g_i18n.lang_path, lang_path, MAX_PATH_LEN - 1);
-    
-    // 构建完整的文件路径
-    char full_path[MAX_PATH_LEN];
-    snprintf(full_path, sizeof(full_path), "%s/lang_%s.ini", lang_path, lang);
-    
-    // 加载语言文件
-    if (load_language(full_path)) {
-        strncpy(g_i18n.current_lang, lang, sizeof(g_i18n.current_lang) - 1);
-        return 1;
-    }
-    return 0;
+static int init_i18n(const char* lang) {
+    return load_language(lang);
 }
 
 // 切换语言
 static int switch_language(const char* lang) {
-    char full_path[MAX_PATH_LEN];
-    snprintf(full_path, sizeof(full_path), "%s/lang_%s.ini", g_i18n.lang_path, lang);
-    return load_language(full_path);
+    return load_language(lang);
 }
 
 // 清理资源
 static void cleanup_i18n() {
-    for (int i = 0; i < g_i18n.count; i++) {
-        free(g_i18n.strings[i]);
-        free(g_i18n.translations[i]);
+    if (g_i18n.ids) {
+        for (int i = 0; i < g_i18n.count; i++) {
+            if (i == 0) {  // 只在第一个语言文件中存储了ID
+                free(g_i18n.ids[i]);
+            }
+            free(g_i18n.translations[i]);
+        }
+        free(g_i18n.ids);
+        free(g_i18n.translations);
+        g_i18n.ids = NULL;
+        g_i18n.translations = NULL;
     }
     g_i18n.count = 0;
 }
