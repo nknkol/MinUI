@@ -19,6 +19,7 @@
 #include "utils.h"
 #include "scaler.h"
 
+#include "i18n.h"
 ///////////////////////////////////////
 
 static SDL_Surface* screen;
@@ -3719,74 +3720,134 @@ TruncatedText truncate_with_ellipsis(TTF_Font* font, const char* text, int max_w
 typedef struct {
     const char* text;          // 要滚动的文本
 	SDL_Rect clip_rect;
-	SDL_Rect pill_rect;
+	//SDL_Rect pill_rect;
     int x, y;                  // 当前文本起始位置
     int text_width;            // 文本的宽度（可预先计算或动态获取）
     int scroll_speed;          // 滚动速度
 } ScrollingText;
-void renderScrollingText(ScrollingText* scrollingText, SDL_Rect* clip_rect) {
-    // 创建文本表面
-    SDL_Surface* text_surface = TTF_RenderUTF8_Blended(font.large, scrollingText->text, COLOR_BLACK);
-    if (!text_surface) {
-        printf("Failed to render text: %s\n", TTF_GetError());
-        return;
-    }
-    // 更新滚动逻辑
-    scrollingText->x -= scrollingText->scroll_speed;
-    if (scrollingText->x + scrollingText->text_width <= clip_rect->x) {
-        // 当当前文本完全滚出左边界，将其位置重置到右边界
-        scrollingText->x += scrollingText->text_width;
-    }
-    // 在限制区域内绘制文本
-    int current_x = scrollingText->x;
-    while (current_x < clip_rect->x + clip_rect->w) {
-        SDL_Rect dest_rect = { current_x, scrollingText->y, text_surface->w, text_surface->h };
-        // 限制绘制范围在 clip_rect 内
-        SDL_Rect clipped_dest;
-        if (SDL_IntersectRect(&dest_rect, clip_rect, &clipped_dest)) {
-            // 计算对应的源图像偏移
-            SDL_Rect src_rect = {
-                clipped_dest.x - current_x, // 水平偏移量
-                0,
-                clipped_dest.w, 
-                clipped_dest.h
-            };
-            SDL_BlitSurface(text_surface, &src_rect, screen, &clipped_dest);
-        }
-        // 更新绘制位置，添加一个文本的宽度
-        current_x += scrollingText->text_width;
-    }
-    // 释放文本表面
-    SDL_FreeSurface(text_surface);
-}
-// void renderScrollingText(ScrollingText* scrollingText, SDL_Rect* clip_rect) {
+// void renderScrollingText(ScrollingText* scrollingText) {
+//     // 获取文本宽度
+//     int text_width = 0;
+//     TTF_SizeUTF8(font.large, scrollingText->text, &text_width, NULL);
+//     text_width += SCALE1(BUTTON_PADDING * 2);
+//     scrollingText->text_width = text_width;
+
+//     // 绘制白色药丸背景 - 使用clip_rect作为背景范围
+//     GFX_blitPill(ASSET_WHITE_PILL, screen, &scrollingText->clip_rect);
+
 //     // 创建文本表面
 //     SDL_Surface* text_surface = TTF_RenderUTF8_Blended(font.large, scrollingText->text, COLOR_BLACK);
 //     if (!text_surface) {
 //         printf("Failed to render text: %s\n", TTF_GetError());
 //         return;
 //     }
-//     // 更新滚动逻辑
+
+//     // 更新滚动位置
 //     scrollingText->x -= scrollingText->scroll_speed;
-//     if (scrollingText->x + scrollingText->text_width <= clip_rect->x) {
-//         // 当文本完全滚出左边界，将其重置到右边界
-//         scrollingText->x = clip_rect->x + clip_rect->w;
+
+//     // 定义实际的文本滚动范围
+//     SDL_Rect scroll_area = {
+//         scrollingText->x,                    // 当前x位置
+//         scrollingText->y,                    // 指定的y位置
+//         text_surface->w,                     // 文本宽度
+//         text_surface->h                      // 文本高度
+//     };
+
+//     // 无限循环逻辑：当文本完全移出到文本起始位置时，重置到右边界
+//     if (scrollingText->x + text_surface->w < scrollingText->y) {
+//         // 重置到右边界
+//         scrollingText->x = scrollingText->y + SCALE1(PILL_SIZE);
 //     }
-//     // 计算绘制起点和滚动位置
-//     int current_x = scrollingText->x;
-//     while (current_x < clip_rect->x + clip_rect->w) {
-//         SDL_Rect dest_rect = { current_x, scrollingText->y, text_surface->w, text_surface->h };
-//         // 限制绘制范围在 clip_rect 内
+
+//     // 绘制两次文本以实现无缝循环
+//     for (int i = 0; i < 2; i++) {
+//         SDL_Rect dest_rect = {
+//             scrollingText->x + (i * text_surface->w),  // 第二次绘制时偏移一个文本宽度
+//             scrollingText->y,                          // 使用指定的y位置
+//             text_surface->w,
+//             text_surface->h
+//         };
+
+//         // 限制绘制范围在clip_rect内（仅用于可视区域裁剪）
 //         SDL_Rect clipped_dest;
-//         if (SDL_IntersectRect(&dest_rect, clip_rect, &clipped_dest)) {
-//             SDL_BlitSurface(text_surface, NULL, screen, &clipped_dest);
+//         if (SDL_IntersectRect(&dest_rect, &scrollingText->clip_rect, &clipped_dest)) {
+//             // 计算源矩形
+//             SDL_Rect src_rect = {
+//                 clipped_dest.x - dest_rect.x,
+//                 0,
+//                 clipped_dest.w,
+//                 text_surface->h
+//             };
+            
+//             // 绘制文本
+//             SDL_BlitSurface(text_surface, &src_rect, screen, &clipped_dest);
 //         }
-//         // 下一个文本段的位置
-//         current_x += scrollingText->text_width;
 //     }
+
 //     // 释放文本表面
 //     SDL_FreeSurface(text_surface);
 // }
+void renderScrollingText(ScrollingText* scrollingText) {
+    // 获取屏幕一半宽度作为最大宽度限制，与静态文本一致
+    int max_width = screen->w / 2;
+
+    // 绘制白色药丸背景
+    GFX_blitPill(ASSET_WHITE_PILL, screen, &scrollingText->clip_rect);
+
+    // 创建文本表面
+    SDL_Surface* text_surface = TTF_RenderUTF8_Blended(font.large, scrollingText->text, COLOR_BLACK);
+    if (!text_surface) {
+        printf("Failed to render text: %s\n", TTF_GetError());
+        return;
+    }
+
+    // 计算文本开始和结束位置
+    int text_start_x = SCALE1(PADDING + BUTTON_PADDING);
+    int text_end_x = text_start_x + max_width;  // 限制最大宽度
+
+    // 更新滚动位置
+    scrollingText->x -= scrollingText->scroll_speed;
+
+    // 无限循环逻辑：当文本完全移出到文本起始位置时，重置到右边界
+    if (scrollingText->x + text_surface->w < text_start_x) {
+        // 重置到有效的右边界（不超过最大宽度）
+        scrollingText->x = text_end_x;
+    }
+
+    // 绘制文本，考虑最大宽度限制
+    SDL_Rect clip_with_max_width = scrollingText->clip_rect;
+    if (clip_with_max_width.w > max_width) {
+        clip_with_max_width.w = max_width;
+    }
+
+    // 绘制两次文本以实现无缝循环
+    for (int i = 0; i < 2; i++) {
+        SDL_Rect dest_rect = {
+            scrollingText->x + (i * text_surface->w),
+            scrollingText->y,
+            text_surface->w,
+            text_surface->h
+        };
+
+        // 使用考虑最大宽度的裁剪矩形
+        SDL_Rect clipped_dest;
+        if (SDL_IntersectRect(&dest_rect, &clip_with_max_width, &clipped_dest)) {
+            // 计算源矩形
+            SDL_Rect src_rect = {
+                clipped_dest.x - dest_rect.x,
+                0,
+                clipped_dest.w,
+                text_surface->h
+            };
+            
+            // 绘制文本
+            SDL_BlitSurface(text_surface, &src_rect, screen, &clipped_dest);
+        }
+    }
+
+    // 释放文本表面
+    SDL_FreeSurface(text_surface);
+}
 ///////////////////////
 static int Menu_options(MenuList* list) {
 	MenuItem* items = list->items;
@@ -3878,8 +3939,7 @@ static int Menu_options(MenuList* list) {
 				int old_scaling = screen_scaling;
 				MenuItem* item = &items[selected];
 				if (item->values && item->values!=button_labels) { // not an input binding
-					if (PAD_justRepeated(BTN_LEFT)) {
-						if (item->value>0) item->value -= 1;
+					if (item->value>0) item->value -= 1;
 						else {
 							int j;
 							for (j=0; item->values[j]; j++);
@@ -3901,7 +3961,6 @@ static int Menu_options(MenuList* list) {
 								Menu_scale(menu.bitmap, backing);
 							}
 						dirty = 1;
-					}
 				}
 			}else if (savedKeyPress == BTN_RIGHT) {
                 // 按键判断a - 处理BTN_RIGHT键
@@ -4135,7 +4194,6 @@ static int Menu_options(MenuList* list) {
 			SDL_FreeSurface(title_text);
 			// 标题绘制end
 			if (type == MENU_LIST) {
-
 				oy = (((DEVICE_HEIGHT / FIXED_SCALE) - PADDING * 2) - (MENU_ITEM_COUNT * PILL_SIZE)) / 2;
 				// 绘制菜单项
 				for (int i = start, j = 0; i < end; i++, j++) {
@@ -4201,13 +4259,13 @@ static int Menu_options(MenuList* list) {
 							w,
 							SCALE1(PILL_SIZE)
 						});
-						scrollingText.pill_rect.x = SCALE1(PADDING);
-						scrollingText.pill_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
-						scrollingText.pill_rect.w = w;
-						scrollingText.pill_rect.h = SCALE1(PILL_SIZE);
+						// scrollingText.pill_rect.x = SCALE1(PADDING);
+						// scrollingText.pill_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
+						// scrollingText.pill_rect.w = w;
+						// scrollingText.pill_rect.h = SCALE1(PILL_SIZE);
 						//
 						scrollingText.clip_rect.x = SCALE1(PADDING);
-						scrollingText.clip_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE) - (BUTTON_PADDING * 2));
+						scrollingText.clip_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
 						scrollingText.clip_rect.w = w;
 						scrollingText.clip_rect.h = SCALE1(PILL_SIZE);
 						scrollingText.text_width = truncated_text.original_length;
@@ -4289,13 +4347,13 @@ static int Menu_options(MenuList* list) {
 							w,
 							SCALE1(PILL_SIZE)
 						});
-						scrollingText.pill_rect.x = SCALE1(PADDING);
-						scrollingText.pill_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
-						scrollingText.pill_rect.w = SCALE1(BUTTON_PADDING * 2);
-						scrollingText.pill_rect.h = SCALE1(PILL_SIZE);
+						// scrollingText.pill_rect.x = SCALE1(PADDING);
+						// scrollingText.pill_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
+						// scrollingText.pill_rect.w = SCALE1(BUTTON_PADDING * 2);
+						// scrollingText.pill_rect.h = SCALE1(PILL_SIZE);
 						//
 						scrollingText.clip_rect.x = SCALE1(PADDING);
-						scrollingText.clip_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE) - (BUTTON_PADDING * 2));
+						scrollingText.clip_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
 						scrollingText.clip_rect.w = w;
 						scrollingText.clip_rect.h = SCALE1(PILL_SIZE);
 						scrollingText.text_width = truncated_text.original_length;
@@ -4394,15 +4452,15 @@ static int Menu_options(MenuList* list) {
 					dirty = 1;
                     break;  // 退出循环，停止滚动
                 }
-				TTF_SizeUTF8(font.large, scrollingText.text, &scrollingText.pill_rect.w, NULL);
-				GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
-					scrollingText.pill_rect.x,
-					scrollingText.pill_rect.y,
-					scrollingText.pill_rect.w,
-					scrollingText.pill_rect.h
-				});
+				// TTF_SizeUTF8(font.large, scrollingText.text, &scrollingText.clip_rect.w, NULL);
+				// GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
+				// 	scrollingText.clip_rect.x,
+				// 	scrollingText.clip_rect.y,
+				// 	scrollingText.clip_rect.w,
+				// 	scrollingText.clip_rect.h
+				// });
                 // 渲染滚动文本
-                renderScrollingText(&scrollingText, &scrollingText.clip_rect);
+                renderScrollingText(&scrollingText);
                 // 更新显示
                 GFX_flip(screen);
             }
