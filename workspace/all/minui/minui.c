@@ -1506,22 +1506,25 @@ int main (int argc, char *argv[]) {
 			}
 			
 			int ow = GFX_blitHardwareGroup(screen, show_setting);
-			
 			if (show_version) {
+				static int slide_pos = 0;
+				const int SLIDE_SPEED = 30;
+				static SDL_Surface* slide_surface = NULL;
+				
 				if (!version) {
+					dirty = 1;
 					char release[256];
 					getFile(ROOT_SYSTEM_PATH "/version.txt", release, 256);
 					
-					char *tmp,*commit;
+					char *tmp, *commit;
 					commit = strrchr(release, '\n');
 					commit[0] = '\0';
-					commit = strrchr(release, '\n')+1;
+					commit = strrchr(release, '\n') + 1;
 					tmp = strchr(release, '\n');
 					tmp[0] = '\0';
 					
-					// TODO: not sure if I want bare PLAT_* calls here
 					char* extra_key = "Model";
-					char* extra_val = PLAT_getModel(); 
+					char* extra_val = PLAT_getModel();
 					
 					SDL_Surface* release_txt = TTF_RenderUTF8_Blended(font.large, "Release", COLOR_DARK_TEXT);
 					SDL_Surface* version_txt = TTF_RenderUTF8_Blended(font.large, release, COLOR_WHITE);
@@ -1534,47 +1537,145 @@ int main (int argc, char *argv[]) {
 					int l_width = 0;
 					int r_width = 0;
 					
-					if (release_txt->w>l_width) l_width = release_txt->w;
-					if (commit_txt->w>l_width) l_width = commit_txt->w;
-					if (key_txt->w>l_width) l_width = commit_txt->w;
-
-					if (version_txt->w>r_width) r_width = version_txt->w;
-					if (hash_txt->w>r_width) r_width = hash_txt->w;
-					if (val_txt->w>r_width) r_width = val_txt->w;
+					// 计算左右列最大宽度
+					if (release_txt->w > l_width) l_width = release_txt->w;
+					if (commit_txt->w > l_width) l_width = commit_txt->w;
+					if (key_txt->w > l_width) l_width = key_txt->w;
+					
+					if (version_txt->w > r_width) r_width = version_txt->w;
+					if (hash_txt->w > r_width) r_width = hash_txt->w;
+					if (val_txt->w > r_width) r_width = val_txt->w;
 					
 					#define VERSION_LINE_HEIGHT 24
-					int x = l_width + SCALE1(8);
-					int w = x + r_width;
-					int h = SCALE1(VERSION_LINE_HEIGHT*4);
-					version = SDL_CreateRGBSurface(0,w,h,16,0,0,0,0);
+					int content_width = l_width + SCALE1(8) + r_width;
+					int w = screen->w / 2; // 界面宽度为屏幕一半
+					int h = screen->h;     // 高度保持全屏
 					
-					SDL_BlitSurface(release_txt, NULL, version, &(SDL_Rect){0, 0});
-					SDL_BlitSurface(version_txt, NULL, version, &(SDL_Rect){x,0});
-					SDL_BlitSurface(commit_txt, NULL, version, &(SDL_Rect){0,SCALE1(VERSION_LINE_HEIGHT)});
-					SDL_BlitSurface(hash_txt, NULL, version, &(SDL_Rect){x,SCALE1(VERSION_LINE_HEIGHT)});
+					// 创建半透明黑色背景的surface
+					version = SDL_CreateRGBSurface(0, w, h, 32, 0xFF000000, 0x00FF0000, 0x0000FF00, 0x000000FF);
+					SDL_FillRect(version, NULL, SDL_MapRGBA(version->format, 0, 0, 0, 180)); // 半透明黑色
 					
-					SDL_BlitSurface(key_txt, NULL, version, &(SDL_Rect){0,SCALE1(VERSION_LINE_HEIGHT*3)});
-					SDL_BlitSurface(val_txt, NULL, version, &(SDL_Rect){x,SCALE1(VERSION_LINE_HEIGHT*3)});
+					// 计算水平居中的起始x坐标
+					int x_start = (w - content_width) / 2;
+					int x_text = x_start + l_width + SCALE1(8);
 					
+					// 计算垂直居中的起始y坐标
+					int total_height = VERSION_LINE_HEIGHT * 4;
+					int y_start = (h - total_height) / 2;
+					
+					// 绘制所有文本
+					SDL_BlitSurface(release_txt, NULL, version, &(SDL_Rect){x_start, y_start});
+					SDL_BlitSurface(version_txt, NULL, version, &(SDL_Rect){x_text, y_start});
+					
+					SDL_BlitSurface(commit_txt, NULL, version, &(SDL_Rect){x_start, y_start + SCALE1(VERSION_LINE_HEIGHT)});
+					SDL_BlitSurface(hash_txt, NULL, version, &(SDL_Rect){x_text, y_start + SCALE1(VERSION_LINE_HEIGHT)});
+					
+					SDL_BlitSurface(key_txt, NULL, version, &(SDL_Rect){x_start, y_start + SCALE1(VERSION_LINE_HEIGHT * 3)});
+					SDL_BlitSurface(val_txt, NULL, version, &(SDL_Rect){x_text, y_start + SCALE1(VERSION_LINE_HEIGHT * 3)});
+					
+					// 释放临时表面
 					SDL_FreeSurface(release_txt);
 					SDL_FreeSurface(version_txt);
 					SDL_FreeSurface(commit_txt);
 					SDL_FreeSurface(hash_txt);
 					SDL_FreeSurface(key_txt);
 					SDL_FreeSurface(val_txt);
+					
+					// 重置滑动位置
+					slide_pos = 0;
 				}
-				SDL_BlitSurface(version, NULL, screen, &(SDL_Rect){(screen->w-version->w)/2,(screen->h-version->h)/2});
 				
-				// buttons (duped and trimmed from below)
-				if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
-				else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP",  NULL }, 0, screen, 0);
+				// 更新滑动位置
+				if (slide_pos < screen->w / 2) {
+					slide_pos += SLIDE_SPEED;
+					if (slide_pos > screen->w / 2) {
+						slide_pos = screen->w / 2;
+					}
+				}
+				if (slide_pos = screen->w / 2){
+					dirty = 1;
+				}
+				// 从右侧滑入绘制版本界面（只绘制右半部分）
+				SDL_Rect dest = {screen->w - slide_pos, 0, slide_pos, screen->h};
+				SDL_Rect src = {version->w - slide_pos, 0, slide_pos, screen->h};
+				SDL_BlitSurface(version, &src, screen, &dest);
 				
-				// if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
-				// else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
-				// GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
-
-				GFX_blitButtonGroup((char*[]){ "B","BACK",  NULL }, 0, screen, 1);
+				// 绘制按钮
+				if (show_setting && !GetHDMI()) {
+					GFX_blitHardwareHints(screen, show_setting);
+				} else {
+					GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU", "SLEEP", NULL }, 0, screen, 0);
+				}
+				GFX_blitButtonGroup((char*[]){ "B", "BACK", NULL }, 0, screen, 1);
 			}
+			// if (show_version) {
+			// 	if (!version) {
+			// 		char release[256];
+			// 		getFile(ROOT_SYSTEM_PATH "/version.txt", release, 256);
+					
+			// 		char *tmp,*commit;
+			// 		commit = strrchr(release, '\n');
+			// 		commit[0] = '\0';
+			// 		commit = strrchr(release, '\n')+1;
+			// 		tmp = strchr(release, '\n');
+			// 		tmp[0] = '\0';
+					
+			// 		// TODO: not sure if I want bare PLAT_* calls here
+			// 		char* extra_key = "Model";
+			// 		char* extra_val = PLAT_getModel(); 
+					
+			// 		SDL_Surface* release_txt = TTF_RenderUTF8_Blended(font.large, "Release", COLOR_DARK_TEXT);
+			// 		SDL_Surface* version_txt = TTF_RenderUTF8_Blended(font.large, release, COLOR_WHITE);
+			// 		SDL_Surface* commit_txt = TTF_RenderUTF8_Blended(font.large, "Commit", COLOR_DARK_TEXT);
+			// 		SDL_Surface* hash_txt = TTF_RenderUTF8_Blended(font.large, commit, COLOR_WHITE);
+					
+			// 		SDL_Surface* key_txt = TTF_RenderUTF8_Blended(font.large, extra_key, COLOR_DARK_TEXT);
+			// 		SDL_Surface* val_txt = TTF_RenderUTF8_Blended(font.large, extra_val, COLOR_WHITE);
+					
+			// 		int l_width = 0;
+			// 		int r_width = 0;
+					
+			// 		if (release_txt->w>l_width) l_width = release_txt->w;
+			// 		if (commit_txt->w>l_width) l_width = commit_txt->w;
+			// 		if (key_txt->w>l_width) l_width = commit_txt->w;
+
+			// 		if (version_txt->w>r_width) r_width = version_txt->w;
+			// 		if (hash_txt->w>r_width) r_width = hash_txt->w;
+			// 		if (val_txt->w>r_width) r_width = val_txt->w;
+					
+			// 		#define VERSION_LINE_HEIGHT 24
+			// 		int x = l_width + SCALE1(8);
+			// 		int w = x + r_width;
+			// 		int h = SCALE1(VERSION_LINE_HEIGHT*4);
+			// 		version = SDL_CreateRGBSurface(0,w,h,16,0,0,0,0);
+					
+			// 		SDL_BlitSurface(release_txt, NULL, version, &(SDL_Rect){0, 0});
+			// 		SDL_BlitSurface(version_txt, NULL, version, &(SDL_Rect){x,0});
+			// 		SDL_BlitSurface(commit_txt, NULL, version, &(SDL_Rect){0,SCALE1(VERSION_LINE_HEIGHT)});
+			// 		SDL_BlitSurface(hash_txt, NULL, version, &(SDL_Rect){x,SCALE1(VERSION_LINE_HEIGHT)});
+					
+			// 		SDL_BlitSurface(key_txt, NULL, version, &(SDL_Rect){0,SCALE1(VERSION_LINE_HEIGHT*3)});
+			// 		SDL_BlitSurface(val_txt, NULL, version, &(SDL_Rect){x,SCALE1(VERSION_LINE_HEIGHT*3)});
+					
+			// 		SDL_FreeSurface(release_txt);
+			// 		SDL_FreeSurface(version_txt);
+			// 		SDL_FreeSurface(commit_txt);
+			// 		SDL_FreeSurface(hash_txt);
+			// 		SDL_FreeSurface(key_txt);
+			// 		SDL_FreeSurface(val_txt);
+			// 	}
+			// 	SDL_BlitSurface(version, NULL, screen, &(SDL_Rect){(screen->w-version->w)/2,(screen->h-version->h)/2});
+				
+			// 	// buttons (duped and trimmed from below)
+			// 	if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
+			// 	else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP",  NULL }, 0, screen, 0);
+				
+			// 	// if (show_setting && !GetHDMI()) GFX_blitHardwareHints(screen, show_setting);
+			// 	// else GFX_blitButtonGroup((char*[]){ BTN_SLEEP==BTN_POWER?"POWER":"MENU","SLEEP", NULL }, 0, screen, 0);
+			// 	// GFX_blitButtonGroup((char*[]){ "B","BACK", "A","OKAY", NULL }, 1, screen, 1);
+
+			// 	GFX_blitButtonGroup((char*[]){ "B","BACK",  NULL }, 0, screen, 1);
+			// }
 			else {
 				// list
 				if (total>0) {
@@ -1596,7 +1697,7 @@ int main (int argc, char *argv[]) {
 						if (j==selected_row) {
 							GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
 								SCALE1(PADDING),
-								SCALE1(PADDING+(j*PILL_SIZE)),
+								SCALE1((PADDING+(j*PILL_SIZE))+PILL_SIZE),
 								max_width,
 								SCALE1(PILL_SIZE)
 							});
@@ -1615,7 +1716,7 @@ int main (int argc, char *argv[]) {
 								text->h
 							}, screen, &(SDL_Rect){
 								SCALE1(PADDING+BUTTON_PADDING),
-								SCALE1(PADDING+(j*PILL_SIZE)+4)
+								SCALE1((PADDING+(j*PILL_SIZE)+4)+PILL_SIZE) ////
 							});
 						
 							GFX_truncateText(font.large, entry_name, display_name, available_width, SCALE1(BUTTON_PADDING*2));
@@ -1628,7 +1729,7 @@ int main (int argc, char *argv[]) {
 							text->h
 						}, screen, &(SDL_Rect){
 							SCALE1(PADDING+BUTTON_PADDING),
-							SCALE1(PADDING+(j*PILL_SIZE)+4)
+							SCALE1((PADDING+(j*PILL_SIZE)+4)+PILL_SIZE)
 						});
 						SDL_FreeSurface(text);
 					}

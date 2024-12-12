@@ -4260,11 +4260,6 @@ static int Menu_options(MenuList* list) {
 							w,
 							SCALE1(PILL_SIZE)
 						});
-						// scrollingText.pill_rect.x = SCALE1(PADDING);
-						// scrollingText.pill_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
-						// scrollingText.pill_rect.w = w;
-						// scrollingText.pill_rect.h = SCALE1(PILL_SIZE);
-						//
 						scrollingText.clip_rect.x = SCALE1(PADDING);
 						scrollingText.clip_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
 						scrollingText.clip_rect.w = w;
@@ -4311,9 +4306,6 @@ static int Menu_options(MenuList* list) {
                         scrollingText.x = SCALE1(PADDING + BUTTON_PADDING); // 从屏幕右边开始
                         scrollingText.y = SCALE1(oy + PADDING + (j * PILL_SIZE) + 4);/* 计算文本的垂直位置 */
                         scrollingText.scroll_speed = SCROLL_SPEED;
-                        //scrollingText.x = SCALE1(PADDING + BUTTON_PADDING);
-                        //scrollingText.y = max_width;
-                        // scrollingText.text_width = truncated_text.original_length;
                         needScrolling = true;
                         //break;
 					}
@@ -4348,11 +4340,6 @@ static int Menu_options(MenuList* list) {
 							w,
 							SCALE1(PILL_SIZE)
 						});
-						// scrollingText.pill_rect.x = SCALE1(PADDING);
-						// scrollingText.pill_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
-						// scrollingText.pill_rect.w = SCALE1(BUTTON_PADDING * 2);
-						// scrollingText.pill_rect.h = SCALE1(PILL_SIZE);
-						//
 						scrollingText.clip_rect.x = SCALE1(PADDING);
 						scrollingText.clip_rect.y = SCALE1(oy + PADDING + (j * PILL_SIZE));
 						scrollingText.clip_rect.w = w;
@@ -4389,9 +4376,6 @@ static int Menu_options(MenuList* list) {
                         scrollingText.x = SCALE1(PADDING + BUTTON_PADDING); // 从屏幕右边开始
                         scrollingText.y = SCALE1(oy + PADDING + (j * PILL_SIZE) + 4);/* 计算文本的垂直位置 */
                         scrollingText.scroll_speed = SCROLL_SPEED;
-                        //scrollingText.x = SCALE1(PADDING + BUTTON_PADDING);
-                        //scrollingText.y = max_width;
-                        // scrollingText.text_width = truncated_text.original_length;
                         needScrolling = true;
                         //break;
 					}
@@ -4453,13 +4437,6 @@ static int Menu_options(MenuList* list) {
 					dirty = 1;
                     break;  // 退出循环，停止滚动
                 }
-				// TTF_SizeUTF8(font.large, scrollingText.text, &scrollingText.clip_rect.w, NULL);
-				// GFX_blitPill(ASSET_WHITE_PILL, screen, &(SDL_Rect){
-				// 	scrollingText.clip_rect.x,
-				// 	scrollingText.clip_rect.y,
-				// 	scrollingText.clip_rect.w,
-				// 	scrollingText.clip_rect.h
-				// });
                 // 渲染滚动文本
                 renderScrollingText(&scrollingText);
                 // 更新显示
