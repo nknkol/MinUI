@@ -1478,6 +1478,29 @@ int main (int argc, char *argv[]) {
 			
 			// simple thumbnail support a thumbnail for a file or folder named NAME.EXT needs a corresponding /.res/NAME.EXT.png 
 			// that is no bigger than platform FIXED_HEIGHT x FIXED_HEIGHT
+			//
+			SDL_Surface* text = TTF_RenderUTF8_Blended(font.large, "System", COLOR_WHITE);
+			int systemow;
+			int systemox;
+			int systemoy;
+			systemow = SCALE1(PILL_SIZE);
+			systemox = SCALE1(PADDING);
+			systemoy = SCALE1(PADDING);
+			TTF_SizeUTF8(font.large, "System", &systemow, NULL);
+			GFX_blitPill(ASSET_DARK_GRAY_PILL, screen, &(SDL_Rect){
+				systemox,
+				systemoy,
+				systemow + SCALE1(BUTTON_PADDING * 2),
+				SCALE1(PILL_SIZE)
+			});
+			//
+			// 绘制文本
+			SDL_BlitSurface(text, NULL, screen, &(SDL_Rect){
+				systemox + BUTTON_PADDING,
+				systemoy
+			});
+			SDL_FreeSurface(text);
+			//
 			int had_thumb = 0;
 			if (!show_version && total>0) {
 				Entry* entry = top->entries->items[top->selected];
