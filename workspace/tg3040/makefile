@@ -16,6 +16,7 @@ REQUIRES_UNZIP60=other/unzip60
 all: readmes
 	cd show && make
 	cd showtext && make
+	cd settings && make
 
 early: $(REQUIRES_EVTEST) $(REQUIRES_JSTEST) $(REQUIRES_UNZIP60)
 	mkdir -p other
