@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
     // 创建窗口和渲染器
     window = SDL_CreateWindow("SDL Text Example", 
                             SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                            640, 480,
+                            1024, 768,
                             SDL_WINDOW_SHOWN);
     if (window == NULL) {
         printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     }
     
     // 加载字体
-    TTF_Font* font = TTF_OpenFont("Arial.ttf", 24);
+    TTF_Font* font = TTF_OpenFont("/mnt/SDCARD/.system/res/font.otf", 24);
     if (!font) {
         printf("TTF_OpenFont failed: %s\n", TTF_GetError());
         return 1;
@@ -67,8 +67,8 @@ int main(int argc, char* argv[]) {
     
     // 设置渲染目标区域（居中）
     SDL_Rect renderRect = {
-        (640 - textWidth) / 2,   // x坐标居中
-        (480 - textHeight) / 2,  // y坐标居中
+        (1024 - textWidth) / 2,   // x坐标居中
+        (768 - textHeight) / 2,  // y坐标居中
         textWidth,
         textHeight
     };
