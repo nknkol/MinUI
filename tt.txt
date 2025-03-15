@@ -1,0 +1,477 @@
+echo MinUI-20241229-0
+MinUI-20241229-0
+# ----------------------------------------------------
+# make sure we're running in an input device
+tty -s 
+# ready fresh build
+rm -rf ./build
+mkdir -p ./releases
+cp -R ./skeleton ./build
+# remove authoring detritus
+cd ./build && find . -type f -name '.keep' -delete
+cd ./build && find . -type f -name '*.meta' -delete
+echo b4f1e80 > ./workspace/hash.txt
+# copy readmes to workspace so we can use Linux fmt instead of host's
+mkdir -p ./workspace/readmes
+cp ./skeleton/BASE/README.txt ./workspace/readmes/BASE-in.txt
+cp ./skeleton/EXTRAS/README.txt ./workspace/readmes/EXTRAS-in.txt
+# ----------------------------------------------------
+make common PLATFORM=tg3040
+# ----------------------------------------------------
+make build -f makefile.toolchain PLATFORM=tg3040
+docker run -it --rm -v /Users/nknkol/Documents/GitHub/MinUI/workspace:/root/workspace tg3040-toolchain /bin/bash -c '. ~/.bashrc && cd /root/workspace && make'
+cd ./tg3040/libmsettings && make
+make[1]: Entering directory '/root/workspace/tg3040/libmsettings'
+/usr/bin/aarch64-linux-gnu-gcc -c -Werror -fpic "msettings.c"  -Wl,--no-as-needed -ldl -lrt -s
+/usr/bin/aarch64-linux-gnu-gcc -shared -o "libmsettings.so" "msettings.o" -ldl -lrt -s
+cp "msettings.h" "/usr/include"
+cp "libmsettings.so" "/usr/lib"
+make[1]: Leaving directory '/root/workspace/tg3040/libmsettings'
+cd ./tg3040 && make early # eg. other libs
+make[1]: Entering directory '/root/workspace/tg3040'
+mkdir -p other
+cd other/evtest && /usr/bin/aarch64-linux-gnu-gcc -o evtest evtest.c
+cd other/jstest && /usr/bin/aarch64-linux-gnu-gcc -o jstest jstest.c
+cd other/unzip60 && make -f unix/Makefile.trimuismart unzip
+make[2]: Entering directory '/root/workspace/tg3040/other/unzip60'
+make[2]: 'unzip' is up to date.
+make[2]: Leaving directory '/root/workspace/tg3040/other/unzip60'
+make[1]: Leaving directory '/root/workspace/tg3040'
+cd ./tg3040/keymon && make
+make[1]: Entering directory '/root/workspace/tg3040/keymon'
+/usr/bin/aarch64-linux-gnu-gcc keymon.c -o keymon.elf -Os -lmsettings -lpthread -lrt -ldl -Wl,--gc-sections -s -I. -I../../all/common -I../platform/ -DPLATFORM=\"tg3040\"
+make[1]: Leaving directory '/root/workspace/tg3040/keymon'
+cd ./all/minui/ && make
+make[1]: Entering directory '/root/workspace/all/minui'
+mkdir -p build/tg3040
+/usr/bin/aarch64-linux-gnu-gcc minui.c ../common/scaler.c ../common/utils.c ../common/api.c ../../tg3040/platform/platform.c -o build/tg3040/minui.elf -O3 -fomit-frame-pointer -I. -I../common/ -I../../tg3040/platform/ -DPLATFORM=\"tg3040\" -DUSE_SDL2 -Ofast -std=gnu99 -ldl -lmsettings -flto -lSDL2 -lSDL2_image -lSDL2_ttf -lpthread -lm -lz
+make[1]: Leaving directory '/root/workspace/all/minui'
+cd ./all/minarch/ && make
+make[1]: Entering directory '/root/workspace/all/minarch'
+mkdir -p build/tg3040
+/usr/bin/aarch64-linux-gnu-gcc minarch.c ../common/scaler.c ../common/utils.c ../common/api.c ../../tg3040/platform/platform.c -o build/tg3040/minarch.elf -O3 -fomit-frame-pointer -I. -I./libretro-common/include/ -I../common/ -I../../tg3040/platform/ -DPLATFORM=\"tg3040\" -DUSE_SDL2 -Ofast -std=gnu99 -Os -flto -DBUILD_DATE=\"2024.12.29\" -DBUILD_HASH=\"b4f1e80\" -ldl -flto -lmsettings -lSDL2 -lSDL2_image -lSDL2_ttf -lpthread -lm -lz
+make[1]: Leaving directory '/root/workspace/all/minarch'
+cd ./all/clock/ && make
+make[1]: Entering directory '/root/workspace/all/clock'
+mkdir -p build/tg3040
+/usr/bin/aarch64-linux-gnu-gcc clock.c ../common/utils.c ../common/api.c ../common/scaler.c ../../tg3040/platform/platform.c -o build/tg3040/clock.elf -O3 -fomit-frame-pointer -I. -I../common/ -I../../tg3040/platform/ -DPLATFORM=\"tg3040\" -DUSE_SDL2  -Ofast  -ldl -flto -lSDL2 -lSDL2_image -lSDL2_ttf -lpthread -lm -lz -lmsettings
+make[1]: Leaving directory '/root/workspace/all/clock'
+cd ./all/minput/ && make
+make[1]: Entering directory '/root/workspace/all/minput'
+mkdir -p build/tg3040
+/usr/bin/aarch64-linux-gnu-gcc minput.c ../common/utils.c ../common/api.c ../common/scaler.c ../../tg3040/platform/platform.c -o build/tg3040/minput.elf -O3 -fomit-frame-pointer -I. -I../common/ -I../../tg3040/platform/ -DPLATFORM=\"tg3040\" -DUSE_SDL2  -Ofast  -ldl -flto -lSDL2 -lSDL2_image -lSDL2_ttf -lpthread -lm -lz -lmsettings
+make[1]: Leaving directory '/root/workspace/all/minput'
+cd ./all/syncsettings/ && make
+make[1]: Entering directory '/root/workspace/all/syncsettings'
+mkdir -p build/tg3040
+/usr/bin/aarch64-linux-gnu-gcc syncsettings.c -o build/tg3040/syncsettings.elf  -DPLATFORM=\"tg3040\" -Os -lmsettings -lrt -ldl -Wl,--gc-sections -s
+make[1]: Leaving directory '/root/workspace/all/syncsettings'
+cd ./tg3040/cores && make
+make[1]: Entering directory '/root/workspace/tg3040/cores'
+(test ! -f patches/fceumm.patch) || (test -f src/fceumm/.patched) || (cd src/fceumm && git apply -p1 < ../../patches/fceumm.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/fceumm) || (test -f src/fceumm/.patched-all) || (cd src/fceumm &&  touch .patched-all && true)
+mkdir -p output
+cd src/fceumm && make  platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/fceumm'
+/usr/bin/aarch64-linux-gnu-gcc -o fceumm_libretro.so -shared -Wl,--version-script=src/drivers/libretro/link.T -Wl,-no-undefined src/boards/364.o src/boards/237.o src/boards/h2288.o src/boards/KS7032.o src/boards/268.o src/boards/225.o src/boards/3d-block.o src/boards/186.o src/boards/449.o src/boards/malee.o src/boards/96.o src/boards/91.o src/boards/235.o src/boards/a9746.o src/boards/vrc7.o src/boards/addrlatch.o src/boards/265.o src/boards/resettxrom.o src/boards/t-227-1.o src/boards/hp10xx_hp20xx.o src/boards/57.o src/boards/famicombox.o src/boards/128.o src/boards/__serial.o src/boards/368.o src/boards/dance2000.o src/boards/554.o src/boards/463.o src/boards/382.o src/boards/t-262.o src/boards/lh53.o src/boards/vrc3.o src/boards/353.o src/boards/452.o src/boards/43.o src/boards/sheroes.o src/boards/super40in1.o src/boards/77.o src/boards/BMW8544.o src/boards/151.o src/boards/293.o src/boards/novel.o src/boards/8in1.o src/boards/f-15.o src/boards/pec-586.o src/boards/mmc2and4.o src/boards/163.o src/boards/391.o src/boards/bandai.o src/boards/72.o src/boards/ac-08.o src/boards/319.o src/boards/eeprom_93C66.o src/boards/tengen.o src/boards/kof97.o src/boards/372.o src/boards/236.o src/boards/185.o src/boards/txcchip.o src/boards/168.o src/boards/190.o src/boards/gn26.o src/boards/218.o src/boards/vrc1.o src/boards/370.o src/boards/32.o src/boards/334.o src/boards/244.o src/boards/187.o src/boards/234.o src/boards/KS7012.o src/boards/vrcirq.o src/boards/ax5705.o src/boards/ax40g.o src/boards/bmcctc09.o src/boards/bs-5.o src/boards/KS7016.o src/boards/390.o src/boards/830134C.o src/boards/516.o src/boards/416.o src/boards/438.o src/boards/karaoke.o src/boards/dream.o src/boards/410.o src/boards/116.o src/boards/178.o src/boards/501.o src/boards/401.o src/boards/277.o src/boards/KS7057.o src/boards/393.o src/boards/230.o src/boards/437.o src/boards/193.o src/boards/emu2413.o src/boards/269.o src/boards/69.o src/boards/vrc2and4.o src/boards/434.o src/boards/291.o src/boards/81.o src/boards/71.o src/boards/51.o src/boards/41.o src/boards/31.o src/boards/500.o src/boards/375.o src/boards/KS7037.o src/boards/183.o src/boards/latch.o src/boards/mmc5.o src/boards/396.o src/boards/460.o src/boards/65.o src/boards/80.o src/boards/60.o src/boards/50.o src/boards/40.o src/boards/tf-1201.o src/boards/206.o src/boards/108.o src/boards/rt-01.o src/boards/bmc60311c.o src/boards/bmcl6in1.o src/boards/453.o src/boards/67.o src/boards/246.o src/boards/126-422-534.o src/boards/112.o src/boards/88.o src/boards/436.o src/boards/mmc1.o src/boards/414.o src/boards/lh32.o src/boards/468.o src/boards/bmc42in1r.o src/boards/177.o src/boards/466.o src/boards/8237.o src/boards/432.o src/boards/253.o src/boards/mmc3.o src/boards/le05.o src/boards/556.o src/boards/164.o src/boards/420.o src/boards/transformer.o src/boards/sachen.o src/boards/134.o src/boards/267.o src/boards/443.o src/boards/444.o src/boards/456.o src/boards/120.o src/boards/et-4320.o src/boards/232.o src/boards/395.o src/boards/389.o src/boards/n625092.o src/boards/528.o src/boards/539.o src/boards/351.o src/boards/428.o src/boards/558.o src/boards/228.o src/boards/sl1632.o src/boards/467.o src/boards/294.o src/boards/99.o src/boards/KG256.o src/boards/411120-c.o src/boards/458.o src/boards/398.o src/boards/mihunche.o src/boards/fk23c.o src/boards/hp898f.o src/boards/bmc830425C4391t.o src/boards/175.o src/boards/eh8813a.o src/boards/170.o src/boards/448.o src/boards/359.o src/boards/onebus.o src/boards/106.o src/boards/433.o src/boards/104.o src/boards/326.o src/boards/233.o src/boards/bmck3006.o src/boards/vrc7p.o src/boards/faridunrom.o src/boards/vrc6.o src/boards/15.o src/boards/bmcgamecard.o src/boards/bmc64in1nr.o src/boards/inx007t.o src/boards/yoko.o src/boards/SA-9602B.o src/boards/156.o src/boards/28.o src/boards/272.o src/boards/68.o src/boards/431.o src/boards/bmck3033.o src/boards/79.o src/boards/369.o src/boards/KS7013.o src/boards/KS7031.o src/boards/subor.o src/boards/455.o src/boards/252.o src/boards/465.o src/boards/bj56.o src/boards/376.o src/boards/454.o src/boards/et-100.o src/boards/supervision.o src/boards/33.o src/boards/KS7030.o src/boards/439.o src/boards/189.o src/boards/403.o src/boards/103.o src/boards/354.o src/boards/__dummy_mapper.o src/boards/resetnromxin1.o src/boards/46.o src/boards/coolgirl.o src/boards/12in1.o src/boards/362.o src/boards/457.o src/boards/222.o src/boards/bb.o src/boards/356.o src/boards/bmc80013b.o src/boards/380.o src/boards/174.o src/boards/830118C.o src/boards/603-5052.o src/boards/unrom512.o src/boards/310.o src/boards/330.o src/boards/441.o src/boards/411.o src/boards/cheapocabra.o src/boards/357.o src/boards/283.o src/boards/datalatch.o src/boards/383.o src/boards/09-034a.o src/boards/jyasic.o src/boards/lh51.o src/boards/34.o src/boards/edu2000.o src/boards/bmck3036.o src/boards/412.o src/boards/121.o src/boards/430.o src/boards/195.o src/boards/162.o src/boards/533.o src/boards/8157.o src/boards/n106.o src/boards/18.o src/boards/377.o src/boards/360.o src/boards/502.o src/boards/bonza.o src/boards/KS7017.o src/boards/417.o src/boards/199.o src/boards/ffe.o src/boards/cityfighter.o src/boards/117.o src/boards/82.o src/boards/62.o src/boards/208.o src/boards/42.o src/input/fkb.o src/input/ftrainer.o src/input/quiz.o src/input/suborkb.o src/input/hypershot.o src/input/bbox.o src/input/cursor.o src/input/bworld.o src/input/arkanoid.o src/input/mouse.o src/input/oekakids.o src/input/shadow.o src/input/mahjong.o src/input/zapper.o src/input/powerpad.o src/input/toprider.o src/input/pec586kb.o src/drivers/libretro/libretro.o src/drivers/libretro/libretro_dipswitch.o src/cart.o src/cheat.o src/crc32.o src/fceu-endian.o src/fceu-memory.o src/fceu.o src/fds.o src/fds_apu.o src/file.o src/filter.o src/general.o src/input.o src/md5.o src/nsf.o src/palette.o src/ppu.o src/sound.o src/state.o src/video.o src/vsuni.o src/ines.o src/unif.o src/x6502.o src/drivers/libretro/libretro-common/compat/compat_posix_string.o src/drivers/libretro/libretro-common/compat/compat_snprintf.o src/drivers/libretro/libretro-common/compat/compat_strcasestr.o src/drivers/libretro/libretro-common/compat/compat_strl.o src/drivers/libretro/libretro-common/compat/fopen_utf8.o src/drivers/libretro/libretro-common/encodings/encoding_utf.o src/drivers/libretro/libretro-common/file/file_path.o src/drivers/libretro/libretro-common/file/file_path_io.o src/drivers/libretro/libretro-common/streams/file_stream.o src/drivers/libretro/libretro-common/streams/file_stream_transforms.o src/drivers/libretro/libretro-common/streams/memory_stream.o src/drivers/libretro/libretro-common/string/stdstring.o src/drivers/libretro/libretro-common/time/rtime.o src/drivers/libretro/libretro-common/vfs/vfs_implementation.o  -fPIC -flto -lm 
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/fceumm'
+mv src/fceumm/fceumm_libretro.so ./output
+(test ! -f patches/gambatte.patch) || (test -f src/gambatte/.patched) || (cd src/gambatte && git apply -p1 < ../../patches/gambatte.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/gambatte) || (test -f src/gambatte/.patched-all) || (cd src/gambatte &&  touch .patched-all && true)
+mkdir -p output
+cd src/gambatte && make  platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/gambatte'
+/usr/bin/aarch64-linux-gnu-g++  -shared -Wl,--version-script=libgambatte/libretro/link.T   -o gambatte_libretro.so libgambatte/src/bootloader.o libgambatte/src/cpu.o libgambatte/src/gambatte.o libgambatte/src/initstate.o libgambatte/src/interrupter.o libgambatte/src/interruptrequester.o libgambatte/src/gambatte-memory.o libgambatte/src/sound.o libgambatte/src/statesaver.o libgambatte/src/tima.o libgambatte/src/video.o libgambatte/src/video_libretro.o libgambatte/src/mem/cartridge.o libgambatte/src/mem/cartridge_libretro.o libgambatte/src/mem/huc3.o libgambatte/src/mem/memptrs.o libgambatte/src/mem/rtc.o libgambatte/src/sound/channel1.o libgambatte/src/sound/channel2.o libgambatte/src/sound/channel3.o libgambatte/src/sound/channel4.o libgambatte/src/sound/duty_unit.o libgambatte/src/sound/envelope_unit.o libgambatte/src/sound/length_counter.o libgambatte/src/video/ly_counter.o libgambatte/src/video/lyc_irq.o libgambatte/src/video/next_m0_time.o libgambatte/src/video/ppu.o libgambatte/src/video/sprite_mapper.o libgambatte/src/../libretro/libretro.o libgambatte/src/../libretro/gambatte_log.o libgambatte/src/../libretro/blipper.o libgambatte/src/../libretro-common/compat/compat_posix_string.o libgambatte/src/../libretro-common/compat/compat_snprintf.o libgambatte/src/../libretro-common/compat/compat_strcasestr.o libgambatte/src/../libretro-common/compat/compat_strl.o libgambatte/src/../libretro-common/compat/fopen_utf8.o libgambatte/src/../libretro-common/encodings/encoding_utf.o libgambatte/src/../libretro-common/file/file_path.o libgambatte/src/../libretro-common/file/file_path_io.o libgambatte/src/../libretro-common/streams/file_stream.o libgambatte/src/../libretro-common/streams/file_stream_transforms.o libgambatte/src/../libretro-common/string/stdstring.o libgambatte/src/../libretro-common/time/rtime.o libgambatte/src/../libretro-common/vfs/vfs_implementation.o  -fPIC -flto
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/gambatte'
+mv src/gambatte/gambatte_libretro.so ./output
+(test ! -f patches/gpsp.patch) || (test -f src/gpsp/.patched) || (cd src/gpsp && git apply -p1 < ../../patches/gpsp.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/gpsp) || (test -f src/gpsp/.patched-all) || (cd src/gpsp &&  touch .patched-all && true)
+mkdir -p output
+cd src/gpsp && make  platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/gpsp'
+/usr/bin/aarch64-linux-gnu-gcc -fPIC -DPIC -shared -Wl,--version-script=link.T -I./libretro -I./libretro/libretro-common/include  -I./ -O3 -DNDEBUG -o gpsp_libretro.so ./main.o ./cpu.o ./gba_memory.o ./savestate.o ./input.o ./sound.o ./cheats.o ./memmap.o ./libretro/libretro.o ./gba_cc_lut.o ./libretro/libretro-common/compat/compat_posix_string.o ./libretro/libretro-common/compat/compat_strl.o ./libretro/libretro-common/compat/fopen_utf8.o ./libretro/libretro-common/encodings/encoding_utf.o ./libretro/libretro-common/file/file_path.o ./libretro/libretro-common/file/file_path_io.o ./libretro/libretro-common/streams/file_stream.o ./libretro/libretro-common/string/stdstring.o ./libretro/libretro-common/time/rtime.o ./libretro/libretro-common/vfs/vfs_implementation.o ./cpu_threaded.o ./bios_data.o ./arm/arm64_stub.o ./video.o -lm 
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/gpsp'
+mv src/gpsp/gpsp_libretro.so ./output
+(test ! -f patches/pcsx_rearmed.patch) || (test -f src/pcsx_rearmed/.patched) || (cd src/pcsx_rearmed && git apply -p1 < ../../patches/pcsx_rearmed.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/pcsx_rearmed) || (test -f src/pcsx_rearmed/.patched-all) || (cd src/pcsx_rearmed &&  touch .patched-all && true)
+mkdir -p output
+cd src/pcsx_rearmed && make -f Makefile.libretro platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/pcsx_rearmed'
+TARGET:      pcsx_rearmed_libretro.so
+platform:    tg3040
+ARCH:        arm64
+DYNAREC:     ari64
+BUILTIN_GPU: neon
+CC:          /usr/bin/aarch64-linux-gnu-gcc : aarch64-linux-gnu-gcc (Debian 8.3.0-6) 8.3.0
+CFLAGS:       -DGIT_VERSION=\"" e3d7ea4"\" -mtune=cortex-a53 -mcpu=cortex-a53 -march=armv8-a -fomit-frame-pointer -ffast-math -fdata-sections -ffunction-sections -fsingle-precision-constant -flto -fPIC  
+MAIN_LDLIBS: -lpthread -lm -ldl 
+
+/usr/bin/aarch64-linux-gnu-gcc  -DGIT_VERSION=\"" e3d7ea4"\" -mtune=cortex-a53 -mcpu=cortex-a53 -march=armv8-a -fomit-frame-pointer -ffast-math -fdata-sections -ffunction-sections -fsingle-precision-constant -flto -fPIC   -Wall -Iinclude -ffast-math -O2 -DNDEBUG -ffunction-sections -fdata-sections -DP_HAVE_MMAP=1 -DP_HAVE_PTHREAD=1 -DP_HAVE_POSIX_MEMALIGN=1 -DDISABLE_MEM_LUTS=0 -Ideps/libchdr/deps/zlib-1.3.1 -DGPU_NEON -DHAVE_CHD -Ideps/libchdr/include -DHAVE_CDROM -DFRONTEND_SUPPORTS_RGB565 -DHAVE_LIBRETRO -Ideps/libretro-common/include -DNO_FRONTEND  -o pcsx_rearmed_libretro.so libpcsxcore/cdriso.o libpcsxcore/cdrom.o libpcsxcore/cdrom-async.o libpcsxcore/cheat.o libpcsxcore/database.o libpcsxcore/decode_xa.o libpcsxcore/mdec.o libpcsxcore/misc.o libpcsxcore/plugins.o libpcsxcore/ppf.o libpcsxcore/psxbios.o libpcsxcore/psxcommon.o libpcsxcore/psxcounters.o libpcsxcore/psxdma.o libpcsxcore/psxhw.o libpcsxcore/psxinterpreter.o libpcsxcore/psxmem.o libpcsxcore/psxevents.o libpcsxcore/r3000a.o libpcsxcore/sio.o libpcsxcore/spu.o libpcsxcore/gpu.o libpcsxcore/gte.o libpcsxcore/gte_nf.o libpcsxcore/gte_divider.o deps/libchdr/deps/zlib-1.3.1/adler32.o deps/libchdr/deps/zlib-1.3.1/compress.o deps/libchdr/deps/zlib-1.3.1/crc32.o deps/libchdr/deps/zlib-1.3.1/deflate.o deps/libchdr/deps/zlib-1.3.1/gzclose.o deps/libchdr/deps/zlib-1.3.1/gzlib.o deps/libchdr/deps/zlib-1.3.1/gzread.o deps/libchdr/deps/zlib-1.3.1/gzwrite.o deps/libchdr/deps/zlib-1.3.1/infback.o deps/libchdr/deps/zlib-1.3.1/inffast.o deps/libchdr/deps/zlib-1.3.1/inflate.o deps/libchdr/deps/zlib-1.3.1/inftrees.o deps/libchdr/deps/zlib-1.3.1/trees.o deps/libchdr/deps/zlib-1.3.1/uncompr.o deps/libchdr/deps/zlib-1.3.1/zutil.o libpcsxcore/new_dynarec/new_dynarec.o libpcsxcore/new_dynarec/pcsxmem.o libpcsxcore/new_dynarec/linkage_arm64.o libpcsxcore/new_dynarec/emu_if.o plugins/dfsound/dma.o plugins/dfsound/freeze.o plugins/dfsound/registers.o plugins/dfsound/spu.o plugins/dfsound/out.o plugins/dfsound/nullsnd.o plugins/gpulib/gpu.o plugins/gpulib/vout_pl.o plugins/gpu_neon/psx_gpu_if.o plugins/gpu_neon/psx_gpu/psx_gpu_simd.o deps/libchdr/src/libchdr_bitstream.o deps/libchdr/src/libchdr_cdrom.o deps/libchdr/src/libchdr_chd.o deps/libchdr/src/libchdr_flac.o deps/libchdr/src/libchdr_huffman.o deps/libchdr/deps/lzma-24.05/src/Alloc.o deps/libchdr/deps/lzma-24.05/src/CpuArch.o deps/libchdr/deps/lzma-24.05/src/Delta.o deps/libchdr/deps/lzma-24.05/src/LzFind.o deps/libchdr/deps/lzma-24.05/src/LzmaDec.o deps/libchdr/deps/lzma-24.05/src/LzmaEnc.o deps/libchdr/deps/lzma-24.05/src/Sort.o deps/libchdr/deps/zstd-1.5.6/lib/common/entropy_common.o deps/libchdr/deps/zstd-1.5.6/lib/common/error_private.o deps/libchdr/deps/zstd-1.5.6/lib/common/fse_decompress.o deps/libchdr/deps/zstd-1.5.6/lib/common/xxhash.o deps/libchdr/deps/zstd-1.5.6/lib/common/zstd_common.o deps/libchdr/deps/zstd-1.5.6/lib/decompress/huf_decompress.o deps/libchdr/deps/zstd-1.5.6/lib/decompress/huf_decompress_amd64.o deps/libchdr/deps/zstd-1.5.6/lib/decompress/zstd_ddict.o deps/libchdr/deps/zstd-1.5.6/lib/decompress/zstd_decompress_block.o deps/libchdr/deps/zstd-1.5.6/lib/decompress/zstd_decompress.o frontend/cspace.o deps/libretro-common/compat/compat_strl.o deps/libretro-common/file/file_path.o deps/libretro-common/string/stdstring.o deps/libretro-common/vfs/vfs_implementation.o frontend/libretro-cdrom.o deps/libretro-common/lists/string_list.o deps/libretro-common/memmap/memalign.o deps/libretro-common/vfs/vfs_implementation_cdrom.o frontend/libretro.o frontend/libretro-rthreads.o deps/libretro-common/features/features_cpu.o frontend/main.o frontend/plugin.o -flto -fPIC -Wl,--gc-sections -shared -Wl,-version-script=frontend/libretro-version-script -Wl,--no-undefined -lpthread -lm -ldl  
+/usr/bin/ld: warning: deps/libchdr/deps/zstd-1.5.6/lib/decompress/huf_decompress_amd64.o: unsupported GNU_PROPERTY_TYPE (5) type: 0xc0000000
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/pcsx_rearmed'
+mv src/pcsx_rearmed/pcsx_rearmed_libretro.so ./output
+(test ! -f patches/picodrive.patch) || (test -f src/picodrive/.patched) || (cd src/picodrive && git apply -p1 < ../../patches/picodrive.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/picodrive) || (test -f src/picodrive/.patched-all) || (cd src/picodrive &&  touch .patched-all && true)
+mkdir -p output
+cd src/picodrive && make -f Makefile.libretro platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/picodrive'
+/usr/bin/aarch64-linux-gnu-gcc -o picodrive_libretro.so platform/libretro/libretro.o platform/libretro/libretro-common/formats/png/rpng.o platform/libretro/libretro-common/streams/trans_stream.o platform/libretro/libretro-common/streams/trans_stream_pipe.o platform/libretro/libretro-common/streams/trans_stream_zlib.o platform/libretro/libretro-common/file/file_path_io.o platform/libretro/libretro-common/file/file_path.o platform/libretro/libretro-common/vfs/vfs_implementation.o platform/libretro/libretro-common/time/rtime.o platform/libretro/libretro-common/string/stdstring.o platform/libretro/libretro-common/compat/compat_strcasestr.o platform/libretro/libretro-common/encodings/encoding_utf.o platform/libretro/libretro-common/compat/compat_strl.o platform/libretro/libretro-common/compat/compat_posix_string.o platform/libretro/libretro-common/compat/fopen_utf8.o platform/libretro/libretro-common/streams/file_stream.o platform/libretro/libretro-common/streams/file_stream_transforms.o platform/libretro/libretro-common/memmap/memmap.o platform/common/mp3.o platform/common/mp3_sync.o platform/common/mp3_drmp3.o pico/cd/libchdr/src/libchdr_chd.o pico/cd/libchdr/src/libchdr_cdrom.o pico/cd/libchdr/src/libchdr_flac.o pico/cd/libchdr/src/libchdr_bitstream.o pico/cd/libchdr/src/libchdr_huffman.o pico/cd/libchdr/deps/zstd-1.5.6/lib/common/entropy_common.o pico/cd/libchdr/deps/zstd-1.5.6/lib/common/error_private.o pico/cd/libchdr/deps/zstd-1.5.6/lib/common/fse_decompress.o pico/cd/libchdr/deps/zstd-1.5.6/lib/common/xxhash.o pico/cd/libchdr/deps/zstd-1.5.6/lib/common/zstd_common.o pico/cd/libchdr/deps/zstd-1.5.6/lib/decompress/huf_decompress.o pico/cd/libchdr/deps/zstd-1.5.6/lib/decompress/zstd_ddict.o pico/cd/libchdr/deps/zstd-1.5.6/lib/decompress/zstd_decompress_block.o pico/cd/libchdr/deps/zstd-1.5.6/lib/decompress/zstd_decompress.o pico/cd/libchdr/deps/lzma-24.05/src/CpuArch.o pico/cd/libchdr/deps/lzma-24.05/src/Alloc.o pico/cd/libchdr/deps/lzma-24.05/src/LzmaEnc.o pico/cd/libchdr/deps/lzma-24.05/src/Sort.o pico/cd/libchdr/deps/lzma-24.05/src/LzmaDec.o pico/cd/libchdr/deps/lzma-24.05/src/LzFind.o pico/cd/libchdr/deps/lzma-24.05/src/Delta.o zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o zlib/uncompr.o unzip/unzip.o pico/pico.o pico/cart.o pico/memory.o pico/state.o pico/sek.o pico/z80if.o pico/videoport.o pico/draw2.o pico/draw.o pico/mode4.o pico/misc.o pico/eeprom.o pico/patch.o pico/debug.o pico/media.o pico/sms.o pico/cd/mcd.o pico/cd/memory.o pico/cd/sek.o pico/cd/cdc.o pico/cd/cdd.o pico/cd/cd_image.o pico/cd/cd_parse.o pico/cd/gfx.o pico/cd/gfx_dma.o pico/cd/misc.o pico/cd/pcm.o pico/cd/megasd.o pico/32x/32x.o pico/32x/memory.o pico/32x/draw.o pico/32x/sh2soc.o pico/32x/pwm.o pico/pico/pico.o pico/pico/memory.o pico/pico/xpcm.o pico/carthw/carthw.o pico/carthw/eeprom_spi.o pico/carthw/svp/svp.o pico/carthw/svp/memory.o pico/carthw/svp/ssp16.o pico/sound/sound.o pico/sound/resampler.o pico/sound/sn76496.o pico/sound/ym2612.o pico/sound/emu2413/emu2413.o pico/sound/mix.o cpu/fame/famec.o cpu/cz80/cz80.o cpu/drc/cmn.o cpu/sh2/sh2.o cpu/sh2/compiler.o cpu/sh2/mame/sh2pico.o -Ipico/cd/libchdr/deps/lzma-24.05/include -Ipico/cd/libchdr/include  -I platform/libretro/libretro-common/include -I platform/libretro/libretro-common/include/compat -I platform/libretro/libretro-common/include/encodings -I platform/libretro/libretro-common/include/formats -I platform/libretro/libretro-common/include/streams -I platform/libretro/libretro-common/include/string -I platform/libretro/libretro-common/include/vfs -DREVISION=\"-721f265\" -Ofast -fdata-sections -ffunction-sections -Wl,--gc-sections -fno-stack-protector -fno-ident -fomit-frame-pointer -falign-functions=1 -falign-jumps=1 -falign-loops=1 -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-unroll-loops -fmerge-all-constants -fno-math-errno -fPIC -flto -fomit-frame-pointer -ffast-math -D__GCW0__ -mtune=cortex-a53 -mcpu=cortex-a53 -march=armv8-a -D__LIBRETRO__ -DUSE_LIBRETRO_VFS  -O3 -DNDEBUG -I/root/workspace/tg3040/cores/src/picodrive -falign-functions=2 -flto -DREVISION=\"-721f265\" -DHAVE_ZLIB -DUSE_LIBCHDR -Izlib -DEMU_F68K -D_USE_CZ80 -DDRC_SH2 -flto -s -shared -Wl,--no-undefined  -Wl,-Map=picodrive_libretro.so.map -lm
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/picodrive'
+mv src/picodrive/picodrive_libretro.so ./output
+(test ! -f patches/snes9x2005_plus.patch) || (test -f src/snes9x2005_plus/.patched) || (cd src/snes9x2005_plus && git apply -p1 < ../../patches/snes9x2005_plus.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/snes9x2005_plus) || (test -f src/snes9x2005_plus/.patched-all) || (cd src/snes9x2005_plus &&  touch .patched-all && true)
+mkdir -p output
+cd src/snes9x2005_plus && make  platform=tg3040 USE_BLARGG_APU=1 -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/snes9x2005_plus'
+/usr/bin/aarch64-linux-gnu-gcc  -shared -Wl,--version-script=link.T -flto  -o snes9x2005_plus_libretro.so ./source/c4.o ./source/c4emu.o ./source/cheats2.o ./source/cheats.o ./source/clip.o ./source/cpu.o ./source/cpuexec.o ./source/cpuops.o ./source/data.o ./source/dma.o ./source/dsp1.o ./source/fxemu.o ./source/fxinst.o ./source/gfx.o ./source/getset.o ./source/globals.o ./source/memmap.o ./source/obc1.o ./source/ppu.o ./source/sa1.o ./source/sa1cpu.o ./source/sdd1.o ./source/sdd1emu.o ./source/seta010.o ./source/seta011.o ./source/seta018.o ./source/seta.o ./source/spc7110.o ./source/spc7110dec.o ./source/srtc.o ./source/tile.o ./libretro.o ./source/apu_blargg.o 
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/snes9x2005_plus'
+mv src/snes9x2005_plus/snes9x2005_plus_libretro.so ./output
+(test ! -f patches/beetle-pce-fast.patch) || (test -f src/beetle-pce-fast/.patched) || (cd src/beetle-pce-fast && git apply -p1 < ../../patches/beetle-pce-fast.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/beetle-pce-fast) || (test -f src/beetle-pce-fast/.patched-all) || (cd src/beetle-pce-fast &&  touch .patched-all && true)
+mkdir -p output
+cd src/beetle-pce-fast && make  platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/beetle-pce-fast'
+/usr/bin/aarch64-linux-gnu-g++ -o mednafen_pce_fast_libretro.so mednafen/pce_fast/pcecd.o mednafen/pce_fast/pcecd_drive.o mednafen/pce_fast/psg.o mednafen/hw_misc/arcade_card/arcade_card.o mednafen/cdrom/CDAccess.o mednafen/cdrom/CDAccess_Image.o mednafen/cdrom/CDAccess_CCD.o mednafen/cdrom/CDAFReader.o mednafen/cdrom/CDAFReader_Vorbis.o mednafen/cdrom/cdromif.o mednafen/cdrom/CDUtility.o mednafen/cdrom/lec.o mednafen/cdrom/galois.o mednafen/cdrom/recover-raw.o mednafen/cdrom/l-ec.o mednafen/cdrom/edc_crc32.o mednafen/cdrom/CDAccess_CHD.o mednafen/general.o mednafen/FileStream.o mednafen/MemoryStream.o mednafen/Stream.o mednafen/mempatcher.o mednafen/okiadpcm.o libretro.o mednafen/pce_fast/huc6280.o mednafen/pce_fast/input.o mednafen/pce_fast/vdc.o mednafen/sound/Blip_Buffer.o deps/lzma-19.00/src/Alloc.o deps/lzma-19.00/src/Bra86.o deps/lzma-19.00/src/BraIA64.o deps/lzma-19.00/src/CpuArch.o deps/lzma-19.00/src/Delta.o deps/lzma-19.00/src/LzFind.o deps/lzma-19.00/src/Lzma86Dec.o deps/lzma-19.00/src/LzmaDec.o deps/lzma-19.00/src/LzmaEnc.o deps/libchdr/src/libchdr_bitstream.o deps/libchdr/src/libchdr_cdrom.o deps/libchdr/src/libchdr_chd.o deps/libchdr/src/libchdr_flac.o deps/libchdr/src/libchdr_huffman.o deps/zlib-1.2.11/adler32.o deps/zlib-1.2.11/crc32.o deps/zlib-1.2.11/inffast.o deps/zlib-1.2.11/inflate.o deps/zlib-1.2.11/inftrees.o deps/zlib-1.2.11/zutil.o mednafen/tremor/bitwise.o mednafen/tremor/block.o mednafen/tremor/codebook.o mednafen/tremor/floor0.o mednafen/tremor/floor1.o mednafen/tremor/framing.o mednafen/tremor/info.o mednafen/tremor/mapping0.o mednafen/tremor/mdct.o mednafen/tremor/registry.o mednafen/tremor/res012.o mednafen/tremor/sharedbook.o mednafen/tremor/synthesis.o mednafen/tremor/vorbisfile.o mednafen/tremor/window.o mednafen/file.o mednafen/settings.o mednafen/state.o mednafen/mednafen-endian.o libretro-common/streams/file_stream.o libretro-common/streams/file_stream_transforms.o libretro-common/file/file_path.o libretro-common/file/retro_dirent.o libretro-common/lists/string_list.o libretro-common/lists/dir_list.o libretro-common/compat/compat_strl.o libretro-common/compat/compat_snprintf.o libretro-common/compat/compat_posix_string.o libretro-common/compat/compat_strcasestr.o libretro-common/compat/fopen_utf8.o libretro-common/encodings/encoding_utf.o libretro-common/encodings/encoding_crc32.o libretro-common/memmap/memalign.o libretro-common/string/stdstring.o libretro-common/time/rtime.o libretro-common/vfs/vfs_implementation.o -lrt -fPIC -shared -Wl,--no-undefined -Wl,--version-script=link.T 
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/beetle-pce-fast'
+mv src/beetle-pce-fast/mednafen_pce_fast_libretro.so ./output
+(test ! -f patches/beetle-vb.patch) || (test -f src/beetle-vb/.patched) || (cd src/beetle-vb && git apply -p1 < ../../patches/beetle-vb.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/beetle-vb) || (test -f src/beetle-vb/.patched-all) || (cd src/beetle-vb &&  touch .patched-all && true)
+mkdir -p output
+cd src/beetle-vb && make  platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/beetle-vb'
+/usr/bin/aarch64-linux-gnu-g++ -o mednafen_vb_libretro.so mednafen/hw_cpu/v810/v810_cpu.o mednafen/mempatcher.o libretro.o mednafen/vb/vsu.o mednafen/vb/input.o mednafen/vb/timer.o mednafen/vb/vip.o mednafen/hw_cpu/v810/fpu-new/softfloat.o mednafen/sound/Blip_Buffer.o mednafen/state.o mednafen/settings.o libretro-common/compat/compat_strl.o libretro-common/compat/compat_snprintf.o -lrt -flto -fPIC -shared -Wl,--no-undefined -Wl,--version-script=link.T
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/beetle-vb'
+mv src/beetle-vb/mednafen_vb_libretro.so ./output
+(test ! -d ../../all/cores/patches/fake-08) || (test -f src/fake-08/.patched-all) || (cd src/fake-08 &&  touch .patched-all && true)
+mkdir -p output
+cd src/fake-08/platform/libretro && make  platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/fake-08/platform/libretro'
+LD fake08_libretro.so
+/usr/bin/ld: ../../libs/z8lua/loslib.o: in function `os_tmpname(lua_State*)':
+loslib.c:(.text._ZL10os_tmpnameP9lua_State+0x18): warning: the use of `tmpnam' is dangerous, better use `mkstemp'
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/fake-08/platform/libretro'
+mv src/fake-08/platform/libretro/fake08_libretro.so ./output
+(test ! -f patches/mednafen_supafaust.patch) || (test -f src/mednafen_supafaust/.patched) || (cd src/mednafen_supafaust && git apply -p1 < ../../patches/mednafen_supafaust.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/mednafen_supafaust) || (test -f src/mednafen_supafaust/.patched-all) || (cd src/mednafen_supafaust &&  touch .patched-all && true)
+mkdir -p output
+cd src/mednafen_supafaust && make  platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/mednafen_supafaust'
+/usr/bin/aarch64-linux-gnu-g++ -lpthread -fPIC -shared -Wl,--no-undefined -Wl,--version-script=link.T -o mednafen_supafaust_libretro.so mednafen/mednafen.o mednafen/endian.o mednafen/git.o mednafen/error.o mednafen/settings.o mednafen/mempatcher.o mednafen/state.o mednafen/string/string.o mednafen/Stream.o mednafen/FileStream.o mednafen/VirtualFS.o mednafen/NativeVFS.o mednafen/ExtMemStream.o mednafen/MemoryStream.o mednafen/sound/DSPUtility.o mednafen/sound/OwlResampler.o mednafen/video/convert.o mednafen/video/Deinterlacer_Blend.o mednafen/video/Deinterlacer_Simple.o mednafen/video/Deinterlacer.o mednafen/video/surface.o mednafen/cheat_formats/snes.o mednafen/hash/sha1.o mednafen/hash/sha256.o mednafen/MTStreamReader.o mednafen/mthreading/MThreading_POSIX.o mednafen/snes_faust/apu.o mednafen/snes_faust/cpu.o mednafen/snes_faust/ppu.o mednafen/snes_faust/ppu_mt.o mednafen/snes_faust/ppu_mtrender.o mednafen/snes_faust/cart.o mednafen/snes_faust/input.o mednafen/snes_faust/snes.o mednafen/snes_faust/cart/dsp1.o mednafen/snes_faust/cart/dsp2.o mednafen/snes_faust/cart/sdd1.o mednafen/snes_faust/cart/cx4.o mednafen/snes_faust/cart/superfx.o mednafen/snes_faust/cart/sa1.o mednafen/snes_faust/cart/sa1cpu.o mednafen/snes_faust/msu1.o mednafen/snes_faust/ppu_st.o libretro.o
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/mednafen_supafaust'
+mv src/mednafen_supafaust/mednafen_supafaust_libretro.so ./output
+(test ! -f patches/mgba.patch) || (test -f src/mgba/.patched) || (cd src/mgba && git apply -p1 < ../../patches/mgba.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/mgba) || (test -f src/mgba/.patched-all) || (cd src/mgba &&  touch .patched-all && true)
+mkdir -p output
+cd src/mgba && make  platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/mgba'
+/usr/bin/aarch64-linux-gnu-gcc -o mgba_libretro.so -shared -Wl,--version-script=link.T ./src/arm/arm.o ./src/arm/decoder.o ./src/arm/decoder-arm.o ./src/arm/decoder-thumb.o ./src/arm/isa-thumb.o ./src/arm/isa-arm.o ./src/core/bitmap-cache.o ./src/core/cache-set.o ./src/core/cheats.o ./src/core/config.o ./src/core/core.o ./src/core/interface.o ./src/core/lockstep.o ./src/core/log.o ./src/core/map-cache.o ./src/core/sync.o ./src/core/thread.o ./src/core/tile-cache.o ./src/core/core-serialize.o ./src/core/timing.o ./src/gb/audio.o ./src/gb/cheats.o ./src/gb/core.o ./src/gb/gb.o ./src/gb/io.o ./src/gb/mbc.o ./src/gb/mbc/huc-3.o ./src/gb/mbc/licensed.o ./src/gb/mbc/mbc.o ./src/gb/mbc/pocket-cam.o ./src/gb/mbc/tama5.o ./src/gb/mbc/unlicensed.o ./src/gb/memory.o ./src/gb/overrides.o ./src/gb/renderers/cache-set.o ./src/gb/renderers/software.o ./src/gb/serialize.o ./src/gb/sio.o ./src/gb/timer.o ./src/gb/video.o ./src/gba/audio.o ./src/gba/bios.o ./src/gba/cheats.o ./src/gba/cheats/gameshark.o ./src/gba/cheats/parv3.o ./src/gba/cheats/codebreaker.o ./src/gba/core.o ./src/gba/dma.o ./src/gba/gba.o ./src/gba/cart/gpio.o ./src/gba/cart/ereader.o ./src/gba/hle-bios.o ./src/gba/input.o ./src/gba/io.o ./src/gba/cart/matrix.o ./src/gba/memory.o ./src/gba/overrides.o ./src/gba/renderers/cache-set.o ./src/gba/renderers/common.o ./src/gba/renderers/software-mode0.o ./src/gba/renderers/software-obj.o ./src/gba/renderers/software-bg.o ./src/gba/renderers/video-software.o ./src/gba/savedata.o ./src/gba/serialize.o ./src/gba/sio.o ./src/gba/sio/gbp.o ./src/gba/timer.o ./src/gba/cart/vfame.o ./src/gba/video.o ./src/platform/libretro/memory.o ./src/platform/libretro/libretro.o ./src/sm83/isa-sm83.o ./src/sm83/sm83.o ./src/third-party/blip_buf/blip_buf.o ./src/third-party/inih/ini.o ./src/util/circle-buffer.o ./src/util/configuration.o ./src/util/formatting.o ./src/util/gbk-table.o ./src/util/hash.o ./src/util/patch.o ./src/util/patch-ips.o ./src/util/patch-ups.o ./src/util/string.o ./src/util/table.o ./src/util/vector.o ./src/util/vfs.o ./src/util/vfs/vfs-mem.o ./src/util/crc32.o ./src/util/vfs/vfs-fd.o   -lm
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/mgba'
+mv src/mgba/mgba_libretro.so ./output
+(test ! -f patches/pokemini.patch) || (test -f src/pokemini/.patched) || (cd src/pokemini && git apply -p1 < ../../patches/pokemini.patch && touch .patched && true)
+(test ! -f patches/race.patch) || (test -f src/race/.patched) || (cd src/race && git apply -p1 < ../../patches/race.patch && touch .patched && true)
+(test ! -d ../../all/cores/patches/race) || (test -f src/race/.patched-all) || (cd src/race &&  touch .patched-all && true)
+mkdir -p output
+cd src/race && make  platform=tg3040  -j4
+make[2]: Entering directory '/root/workspace/tg3040/cores/src/race'
+/usr/bin/aarch64-linux-gnu-gcc -o race_libretro.so -shared -Wl,-version-script=libretro/link.T ./tlcs900h.o ./graphics.o ./main.o ./flash.o ./input.o ./libretro/libretro.o ./libretro/log.o ./race-memory.o ./ngpBios.o ./state.o ./sound.o ./neopopsound.o ./cz80.o ./cz80_support.o ./libretro-common/compat/compat_posix_string.o ./libretro-common/compat/compat_strcasestr.o ./libretro-common/compat/compat_strl.o ./libretro-common/compat/fopen_utf8.o ./libretro-common/encodings/encoding_utf.o ./libretro-common/file/file_path.o ./libretro-common/file/file_path_io.o ./libretro-common/streams/file_stream.o ./libretro-common/streams/file_stream_transforms.o ./libretro-common/string/stdstring.o ./libretro-common/time/rtime.o ./libretro-common/vfs/vfs_implementation.o   
+make[2]: Leaving directory '/root/workspace/tg3040/cores/src/race'
+mv src/race/race_libretro.so ./output
+make[1]: Leaving directory '/root/workspace/tg3040/cores'
+cd ./tg3040 && make
+make[1]: Entering directory '/root/workspace/tg3040'
+# formating readmes
+cd ../readmes && fmt -w 40 -s ./BASE-in.txt > ./BASE-out.txt
+cd ../readmes && fmt -w 40 -s ./EXTRAS-in.txt > ./EXTRAS-out.txt
+cd ../readmes && rm ./*-in.txt
+cd show && make
+make[2]: Entering directory '/root/workspace/tg3040/show'
+/usr/bin/aarch64-linux-gnu-gcc  show.c -o show.elf -Os -lSDL2 -lSDL2_image -lrt -ldl -Wl,--gc-sections -s
+make[2]: Leaving directory '/root/workspace/tg3040/show'
+cd showtext && make
+make[2]: Entering directory '/root/workspace/tg3040/showtext'
+/usr/bin/aarch64-linux-gnu-gcc  showtext.c -o showtext.elf -Os -lSDL2 -lSDL2_ttf -lSDL2_image -lrt -ldl -Wl,--gc-sections -s
+make[2]: Leaving directory '/root/workspace/tg3040/showtext'
+cd settings && make
+make[2]: Entering directory '/root/workspace/tg3040/settings'
+/usr/bin/aarch64-linux-gnu-gcc  settings.c -o settings.elf -Os -lSDL2 -lSDL2_ttf -lSDL2_image -lrt -ldl -Wl,--gc-sections -s
+make[2]: Leaving directory '/root/workspace/tg3040/settings'
+make[1]: Leaving directory '/root/workspace/tg3040'
+# ----------------------------------------------------
+make -f ./workspace/tg3040/platform/makefile.copy PLATFORM=tg3040
+# tg3040
+cp ./workspace/tg3040/show/show.elf ./build/SYSTEM/tg3040/bin
+# installer
+cp ./workspace/tg3040/install/boot.sh ./build/BOOT/common/tg3040.sh
+mkdir -p ./build/BOOT/common/tg3040/
+cp ./workspace/tg3040/install/*.png ./build/BOOT/common/tg3040/
+cp ./workspace/tg3040/show/show.elf ./build/BOOT/common/tg3040/
+cp ./workspace/tg3040/other/unzip60/unzip ./build/BOOT/common/tg3040/
+# extras
+# cp ./workspace/tg5040/other/evtest/evtest ./build/EXTRAS/Tools/tg3040/Developer.pak/
+# populate system
+cp ./workspace/tg3040/keymon/keymon.elf ./build/SYSTEM/tg3040/bin/
+cp ./workspace/tg3040/libmsettings/libmsettings.so ./build/SYSTEM/tg3040/lib
+cp ./workspace/tg3040/showtext/showtext.elf ./build/SYSTEM/tg3040/bin/
+cp ./workspace/all/minui/build/tg3040/minui.elf ./build/SYSTEM/tg3040/bin/
+cp ./workspace/all/minarch/build/tg3040/minarch.elf ./build/SYSTEM/tg3040/bin/
+cp ./workspace/all/syncsettings/build/tg3040/syncsettings.elf ./build/SYSTEM/tg3040/bin/
+cp ./workspace/all/clock/build/tg3040/clock.elf ./build/EXTRAS/Tools/tg3040/Clock.pak/
+cp ./workspace/all/minput/build/tg3040/minput.elf ./build/EXTRAS/Tools/tg3040/Input.pak/
+# stock cores
+cp ./workspace/tg3040/cores/output/fceumm_libretro.so ./build/SYSTEM/tg3040/cores
+cp ./workspace/tg3040/cores/output/gambatte_libretro.so ./build/SYSTEM/tg3040/cores
+cp ./workspace/tg3040/cores/output/gpsp_libretro.so ./build/SYSTEM/tg3040/cores
+cp ./workspace/tg3040/cores/output/picodrive_libretro.so ./build/SYSTEM/tg3040/cores
+cp ./workspace/tg3040/cores/output/snes9x2005_plus_libretro.so ./build/SYSTEM/tg3040/cores
+cp ./workspace/tg3040/cores/output/pcsx_rearmed_libretro.so ./build/SYSTEM/tg3040/cores
+# extras
+cp ./workspace/tg3040/cores/output/fake08_libretro.so ./build/EXTRAS/Emus/tg3040/P8.pak
+cp ./workspace/tg3040/cores/output/mgba_libretro.so ./build/EXTRAS/Emus/tg3040/MGBA.pak
+cp ./workspace/tg3040/cores/output/mgba_libretro.so ./build/EXTRAS/Emus/tg3040/SGB.pak
+cp ./workspace/tg3040/cores/output/mednafen_pce_fast_libretro.so ./build/EXTRAS/Emus/tg3040/PCE.pak
+cp ./workspace/tg3040/cores/output/pokemini_libretro.so ./build/EXTRAS/Emus/tg3040/PKM.pak
+cp ./workspace/tg3040/cores/output/race_libretro.so ./build/EXTRAS/Emus/tg3040/NGP.pak
+cp ./workspace/tg3040/cores/output/race_libretro.so ./build/EXTRAS/Emus/tg3040/NGPC.pak
+cp ./workspace/tg3040/cores/output/mednafen_supafaust_libretro.so ./build/EXTRAS/Emus/tg3040/SUPA.pak
+cp ./workspace/tg3040/cores/output/mednafen_vb_libretro.so ./build/EXTRAS/Emus/tg3040/VB.pak
+# ----------------------------------------------------
+# ----------------------------------------------------
+# setup trimui family .tmp_update in BOOT
+mv ./build/BOOT/common ./build/BOOT/.tmp_update
+mv ./build/BOOT/trimui ./build/BASE/
+cp -R ./build/BOOT/.tmp_update ./build/BASE/trimui/app/
+# ----------------------------------------------------
+# zip up build
+# move formatted readmes from workspace to build
+cp ./workspace/readmes/BASE-out.txt ./build/BASE/README.txt
+cp ./workspace/readmes/EXTRAS-out.txt ./build/EXTRAS/README.txt
+rm -rf ./workspace/readmes
+cd ./build/SYSTEM && echo "MinUI-20241229-0\nb4f1e80" > version.txt
+./commits.sh > ./build/SYSTEM/commits.txt
+cd ./build && find . -type f -name '.DS_Store' -delete
+mkdir -p ./build/PAYLOAD
+mv ./build/SYSTEM ./build/PAYLOAD/.system
+cp -R ./build/BOOT/.tmp_update ./build/PAYLOAD/
+cd ./build/PAYLOAD && zip -r ../BASE/trimui.zip .tmp_update
+  adding: .tmp_update/ (stored 0%)
+  adding: .tmp_update/tg3040.sh (deflated 50%)
+  adding: .tmp_update/updater (deflated 43%)
+  adding: .tmp_update/tg3040/ (stored 0%)
+  adding: .tmp_update/tg3040/installing.png (deflated 40%)
+  adding: .tmp_update/tg3040/updating.png (deflated 40%)
+  adding: .tmp_update/tg3040/unzip (deflated 59%)
+  adding: .tmp_update/tg3040/show.elf (deflated 75%)
+cd ./build/PAYLOAD && zip -r MinUI.zip .system .tmp_update
+  adding: .system/ (stored 0%)
+  adding: .system/res/ (stored 0%)
+  adding: .system/res/grid-3.png (deflated 91%)
+  adding: .system/res/line-2.png (deflated 90%)
+  adding: .system/res/line-3.png (deflated 90%)
+  adding: .system/res/grid-2.png (deflated 92%)
+  adding: .system/res/grid-5.png (deflated 91%)
+  adding: .system/res/line-4.png (deflated 91%)
+  adding: .system/res/line-5.png (deflated 89%)
+  adding: .system/res/grid-4.png (deflated 92%)
+  adding: .system/res/grid-6.png (deflated 91%)
+  adding: .system/res/font.otf (deflated 17%)
+  adding: .system/res/line-6.png (deflated 90%)
+  adding: .system/res/assets@1x.png (deflated 2%)
+  adding: .system/res/assets@2x.png (deflated 4%)
+  adding: .system/res/assets@3x.png (deflated 6%)
+  adding: .system/res/lang_zh.ini (deflated 30%)
+  adding: .system/res/assets@4x.png (deflated 8%)
+  adding: .system/res/line-8.png (deflated 89%)
+  adding: .system/res/charging-640-480.png (deflated 18%)
+  adding: .system/res/grid-8.png (deflated 92%)
+  adding: .system/res/grid-11.png (deflated 91%)
+  adding: .system/tg3040/ (stored 0%)
+  adding: .system/tg3040/paks/ (stored 0%)
+  adding: .system/tg3040/paks/MinUI.pak/ (stored 0%)
+  adding: .system/tg3040/paks/MinUI.pak/launch.sh (deflated 64%)
+  adding: .system/tg3040/paks/Emus/ (stored 0%)
+  adding: .system/tg3040/paks/Emus/MD.pak/ (stored 0%)
+  adding: .system/tg3040/paks/Emus/MD.pak/launch.sh (deflated 36%)
+  adding: .system/tg3040/paks/Emus/MD.pak/default.cfg (deflated 48%)
+  adding: .system/tg3040/paks/Emus/GBC.pak/ (stored 0%)
+  adding: .system/tg3040/paks/Emus/GBC.pak/launch.sh (deflated 36%)
+  adding: .system/tg3040/paks/Emus/GBC.pak/default.cfg (deflated 41%)
+  adding: .system/tg3040/paks/Emus/FC.pak/ (stored 0%)
+  adding: .system/tg3040/paks/Emus/FC.pak/launch.sh (deflated 37%)
+  adding: .system/tg3040/paks/Emus/FC.pak/default.cfg (deflated 47%)
+  adding: .system/tg3040/paks/Emus/GBA.pak/ (stored 0%)
+  adding: .system/tg3040/paks/Emus/GBA.pak/launch.sh (deflated 37%)
+  adding: .system/tg3040/paks/Emus/GBA.pak/default.cfg (deflated 40%)
+  adding: .system/tg3040/paks/Emus/SFC.pak/ (stored 0%)
+  adding: .system/tg3040/paks/Emus/SFC.pak/launch.sh (deflated 35%)
+  adding: .system/tg3040/paks/Emus/SFC.pak/default.cfg (deflated 44%)
+  adding: .system/tg3040/paks/Emus/GB.pak/ (stored 0%)
+  adding: .system/tg3040/paks/Emus/GB.pak/launch.sh (deflated 36%)
+  adding: .system/tg3040/paks/Emus/GB.pak/default.cfg (deflated 44%)
+  adding: .system/tg3040/paks/Emus/PS.pak/ (stored 0%)
+  adding: .system/tg3040/paks/Emus/PS.pak/launch.sh (deflated 36%)
+  adding: .system/tg3040/paks/Emus/PS.pak/default.cfg (deflated 45%)
+  adding: .system/tg3040/bin/ (stored 0%)
+  adding: .system/tg3040/bin/showtext.elf (deflated 70%)
+  adding: .system/tg3040/bin/keymon.elf (deflated 70%)
+  adding: .system/tg3040/bin/minarch.elf (deflated 57%)
+  adding: .system/tg3040/bin/show.elf (deflated 75%)
+  adding: .system/tg3040/bin/syncsettings.elf (deflated 69%)
+  adding: .system/tg3040/bin/minui.elf (deflated 55%)
+  adding: .system/tg3040/system.cfg (deflated 29%)
+  adding: .system/tg3040/lib/ (stored 0%)
+  adding: .system/tg3040/lib/libmsettings.so (deflated 67%)
+  adding: .system/tg3040/cores/ (stored 0%)
+  adding: .system/tg3040/cores/gpsp_libretro.so (deflated 68%)
+  adding: .system/tg3040/cores/gambatte_libretro.so (deflated 84%)
+  adding: .system/tg3040/cores/pcsx_rearmed_libretro.so (deflated 64%)
+  adding: .system/tg3040/cores/snes9x2005_plus_libretro.so (deflated 68%)
+  adding: .system/tg3040/cores/picodrive_libretro.so (deflated 58%)
+  adding: .system/tg3040/cores/fceumm_libretro.so (deflated 84%)
+  adding: .system/version.txt (stored 0%)
+  adding: .system/commits.txt (deflated 57%)
+  adding: .tmp_update/ (stored 0%)
+  adding: .tmp_update/tg3040.sh (deflated 50%)
+  adding: .tmp_update/updater (deflated 43%)
+  adding: .tmp_update/tg3040/ (stored 0%)
+  adding: .tmp_update/tg3040/installing.png (deflated 40%)
+  adding: .tmp_update/tg3040/updating.png (deflated 40%)
+  adding: .tmp_update/tg3040/unzip (deflated 59%)
+  adding: .tmp_update/tg3040/show.elf (deflated 75%)
+mv ./build/PAYLOAD/MinUI.zip ./build/BASE
+# TODO: can I just add everything in BASE to zip?
+cd ./build/BASE && zip -r ../../releases/MinUI-20241229-0-base.zip Bios Roms Saves trimui MinUI.zip README.txt
+  adding: Bios/ (stored 0%)
+  adding: Bios/GBA/ (stored 0%)
+  adding: Bios/FC/ (stored 0%)
+  adding: Bios/SFC/ (stored 0%)
+  adding: Bios/PS/ (stored 0%)
+  adding: Bios/GBC/ (stored 0%)
+  adding: Bios/GB/ (stored 0%)
+  adding: Bios/MD/ (stored 0%)
+  adding: Roms/ (stored 0%)
+  adding: Roms/Game Boy Color (GBC)/ (stored 0%)
+  adding: Roms/Super Nintendo Entertainment System (SFC)/ (stored 0%)
+  adding: Roms/Game Boy (GB)/ (stored 0%)
+  adding: Roms/Sega Genesis (MD)/ (stored 0%)
+  adding: Roms/Game Boy Advance (GBA)/ (stored 0%)
+  adding: Roms/Sony PlayStation (PS)/ (stored 0%)
+  adding: Roms/Nintendo Entertainment System (FC)/ (stored 0%)
+  adding: Saves/ (stored 0%)
+  adding: Saves/GBA/ (stored 0%)
+  adding: Saves/FC/ (stored 0%)
+  adding: Saves/SFC/ (stored 0%)
+  adding: Saves/PS/ (stored 0%)
+  adding: Saves/GBC/ (stored 0%)
+  adding: Saves/GB/ (stored 0%)
+  adding: Saves/MD/ (stored 0%)
+  adding: trimui/ (stored 0%)
+  adding: trimui/app/ (stored 0%)
+  adding: trimui/app/runtrimui.sh (deflated 40%)
+  adding: trimui/app/MainUI (deflated 54%)
+  adding: trimui/app/main.sh (deflated 37%)
+  adding: trimui/app/keymon (stored 0%)
+  adding: trimui/app/.tmp_update/ (stored 0%)
+  adding: trimui/app/.tmp_update/tg3040.sh (deflated 50%)
+  adding: trimui/app/.tmp_update/updater (deflated 43%)
+  adding: trimui/app/.tmp_update/tg3040/ (stored 0%)
+  adding: trimui/app/.tmp_update/tg3040/installing.png (deflated 40%)
+  adding: trimui/app/.tmp_update/tg3040/updating.png (deflated 40%)
+  adding: trimui/app/.tmp_update/tg3040/unzip (deflated 59%)
+  adding: trimui/app/.tmp_update/tg3040/show.elf (deflated 75%)
+  adding: MinUI.zip (stored 0%)
+  adding: README.txt (deflated 60%)
+cd ./build/EXTRAS && zip -r ../../releases/MinUI-20241229-0-extras.zip Bios Emus Roms Saves Tools README.txt
+  adding: Bios/ (stored 0%)
+  adding: Bios/GG/ (stored 0%)
+  adding: Bios/SMS/ (stored 0%)
+  adding: Bios/PKM/ (stored 0%)
+  adding: Bios/VB/ (stored 0%)
+  adding: Bios/PCE/ (stored 0%)
+  adding: Bios/P8/ (stored 0%)
+  adding: Bios/MGBA/ (stored 0%)
+  adding: Bios/SGB/ (stored 0%)
+  adding: Bios/NGPC/ (stored 0%)
+  adding: Emus/ (stored 0%)
+  adding: Emus/tg3040/ (stored 0%)
+  adding: Emus/tg3040/SMS.pak/ (stored 0%)
+  adding: Emus/tg3040/SMS.pak/launch.sh (deflated 36%)
+  adding: Emus/tg3040/SMS.pak/default.cfg (deflated 50%)
+  adding: Emus/tg3040/SUPA.pak/ (stored 0%)
+  adding: Emus/tg3040/SUPA.pak/launch.sh (deflated 38%)
+  adding: Emus/tg3040/SUPA.pak/mednafen_supafaust_libretro.so (deflated 75%)
+  adding: Emus/tg3040/SUPA.pak/default.cfg (deflated 42%)
+  adding: Emus/tg3040/NGP.pak/ (stored 0%)
+  adding: Emus/tg3040/NGP.pak/launch.sh (deflated 40%)
+  adding: Emus/tg3040/NGP.pak/race_libretro.so (deflated 72%)
+  adding: Emus/tg3040/NGP.pak/default.cfg (deflated 27%)
+  adding: Emus/tg3040/GG.pak/ (stored 0%)
+  adding: Emus/tg3040/GG.pak/launch.sh (deflated 36%)
+  adding: Emus/tg3040/GG.pak/default.cfg (deflated 50%)
+  adding: Emus/tg3040/NGPC.pak/ (stored 0%)
+  adding: Emus/tg3040/NGPC.pak/launch.sh (deflated 40%)
+  adding: Emus/tg3040/NGPC.pak/race_libretro.so (deflated 72%)
+  adding: Emus/tg3040/NGPC.pak/default.cfg (deflated 30%)
+  adding: Emus/tg3040/P8.pak/ (stored 0%)
+  adding: Emus/tg3040/P8.pak/launch.sh (deflated 40%)
+  adding: Emus/tg3040/P8.pak/fake08_libretro.so (deflated 61%)
+  adding: Emus/tg3040/P8.pak/default.cfg (deflated 33%)
+  adding: Emus/tg3040/SGB.pak/ (stored 0%)
+  adding: Emus/tg3040/SGB.pak/launch.sh (deflated 40%)
+  adding: Emus/tg3040/SGB.pak/default.cfg (deflated 50%)
+  adding: Emus/tg3040/SGB.pak/mgba_libretro.so (deflated 84%)
+  adding: Emus/tg3040/MGBA.pak/ (stored 0%)
+  adding: Emus/tg3040/MGBA.pak/launch.sh (deflated 40%)
+  adding: Emus/tg3040/MGBA.pak/default.cfg (deflated 50%)
+  adding: Emus/tg3040/MGBA.pak/mgba_libretro.so (deflated 84%)
+  adding: Emus/tg3040/PCE.pak/ (stored 0%)
+  adding: Emus/tg3040/PCE.pak/mednafen_pce_fast_libretro.so (deflated 87%)
+  adding: Emus/tg3040/PCE.pak/launch.sh (deflated 38%)
+  adding: Emus/tg3040/PCE.pak/default.cfg (deflated 37%)
+  adding: Emus/tg3040/PKM.pak/ (stored 0%)
+  adding: Emus/tg3040/PKM.pak/launch.sh (deflated 40%)
+  adding: Emus/tg3040/PKM.pak/pokemini_libretro.so (deflated 71%)
+  adding: Emus/tg3040/PKM.pak/default.cfg (deflated 41%)
+  adding: Emus/tg3040/VB.pak/ (stored 0%)
+  adding: Emus/tg3040/VB.pak/launch.sh (deflated 40%)
+  adding: Emus/tg3040/VB.pak/mednafen_vb_libretro.so (deflated 58%)
+  adding: Emus/tg3040/VB.pak/default.cfg (deflated 45%)
+  adding: Roms/ (stored 0%)
+  adding: Roms/Game Boy Advance (MGBA)/ (stored 0%)
+  adding: Roms/TurboGrafx-16 (PCE)/ (stored 0%)
+  adding: Roms/Sega Game Gear (GG)/ (stored 0%)
+  adding: Roms/Pico-8 (P8)/ (stored 0%)
+  adding: Roms/Super Nintendo Entertainment System (SUPA)/ (stored 0%)
+  adding: Roms/Sega Master System (SMS)/ (stored 0%)
+  adding: Roms/Neo Geo Pocket Color (NGPC)/ (stored 0%)
+  adding: Roms/Virtual Boy (VB)/ (stored 0%)
+  adding: Roms/Super Game Boy (SGB)/ (stored 0%)
+  adding: Roms/Pokémon mini (PKM)/ (stored 0%)
+  adding: Saves/ (stored 0%)
+  adding: Saves/GG/ (stored 0%)
+  adding: Saves/SMS/ (stored 0%)
+  adding: Saves/PKM/ (stored 0%)
+  adding: Saves/SUPA/ (stored 0%)
+  adding: Saves/VB/ (stored 0%)
+  adding: Saves/PCE/ (stored 0%)
+  adding: Saves/P8/ (stored 0%)
+  adding: Saves/MGBA/ (stored 0%)
+  adding: Saves/SGB/ (stored 0%)
+  adding: Saves/NGPC/ (stored 0%)
+  adding: Tools/ (stored 0%)
+  adding: Tools/tg3040/ (stored 0%)
+  adding: Tools/tg3040/Remove Loading.pak/ (stored 0%)
+  adding: Tools/tg3040/Remove Loading.pak/launch.sh (deflated 19%)
+  adding: Tools/tg3040/Remove Loading.pak/done.png (deflated 58%)
+  adding: Tools/tg3040/Bootlogo.pak/ (stored 0%)
+  adding: Tools/tg3040/Bootlogo.pak/launch.sh (deflated 31%)
+  adding: Tools/tg3040/Bootlogo.pak/bootlogo.bmp (deflated 97%)
+  adding: Tools/tg3040/Bootlogo.pak/original.bmp (deflated 96%)
+  adding: Tools/tg3040/Clock.pak/ (stored 0%)
+  adding: Tools/tg3040/Clock.pak/launch.sh (stored 0%)
+  adding: Tools/tg3040/Clock.pak/clock.elf (deflated 61%)
+  adding: Tools/tg3040/Input.pak/ (stored 0%)
+  adding: Tools/tg3040/Input.pak/launch.sh (stored 0%)
+  adding: Tools/tg3040/Input.pak/minput.elf (deflated 61%)
+  adding: README.txt (deflated 54%)
+echo "MinUI-20241229-0" > ./build/latest.txt
+say "done" 2>/dev/null || true
